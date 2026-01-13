@@ -59,6 +59,12 @@ function validateField(value, field) {
     case 'slider':
       errors.push(...validateSlider(value, field))
       break
+    case 'time':
+      errors.push(...validateTime(value))
+      break
+    case 'multiselect':
+      errors.push(...validateMultiselect(value, field))
+      break
   }
 
   return errors
@@ -74,12 +80,21 @@ function isValuePresent(value, type) {
     return value === true
   }
 
+  // For multiselect, required means at least one option selected
+  if (type === 'multiselect') {
+    return Array.isArray(value) && value.length > 0
+  }
+
   if (typeof value === 'string') {
     return value.trim().length > 0
   }
 
   if (typeof value === 'number') {
     return !isNaN(value)
+  }
+
+  if (Array.isArray(value)) {
+    return value.length > 0
   }
 
   return true
@@ -214,6 +229,39 @@ function validateSlider(value, field) {
   return errors
 }
 
+function validateTime(value) {
+  const errors = []
+  const timeRegex = /^([01]?[0-9]|2[0-3]):[0-5][0-9]$/
+
+  if (!timeRegex.test(String(value))) {
+    errors.push('Format invalide (HH:MM)')
+  }
+
+  return errors
+}
+
+function validateMultiselect(value, field) {
+  const errors = []
+
+  if (!Array.isArray(value)) {
+    errors.push('Sélection invalide')
+    return errors
+  }
+
+  if (!field.options || !Array.isArray(field.options)) {
+    return errors
+  }
+
+  const validValues = field.options.map(opt => opt.value)
+  const invalidSelections = value.filter(v => !validValues.includes(v))
+
+  if (invalidSelections.length > 0) {
+    errors.push('Option(s) invalide(s)')
+  }
+
+  return errors
+}
+
 export function validateSchema(schema) {
   const errors = []
 
@@ -234,7 +282,7 @@ export function validateSchema(schema) {
     return { valid: false, errors }
   }
 
-  const validTypes = ['text', 'textarea', 'number', 'select', 'checkbox', 'date', 'email', 'phone', 'url', 'rating', 'radio', 'slider']
+  const validTypes = ['text', 'textarea', 'number', 'select', 'checkbox', 'date', 'time', 'email', 'phone', 'url', 'rating', 'radio', 'slider', 'multiselect']
   const fieldNames = new Set()
   const fieldIds = new Set()
 
@@ -265,7 +313,7 @@ export function validateSchema(schema) {
       errors.push(`Champ ${n}: "label" invalide`)
     }
 
-    if (field.type === 'select' || field.type === 'radio') {
+    if (field.type === 'select' || field.type === 'radio' || field.type === 'multiselect') {
       if (!Array.isArray(field.options) || field.options.length === 0) {
         errors.push(`Champ ${n}: options manquantes`)
       } else {

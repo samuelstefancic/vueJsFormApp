@@ -107,6 +107,27 @@ const fieldTypes = [
       <circle cx="12" cy="10" r="3" stroke="currentColor" stroke-width="1.5" fill="var(--color-bg)"/>
     </svg>`,
     description: 'Valeur avec curseur'
+  },
+  {
+    type: 'time',
+    label: 'Heure',
+    icon: `<svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+      <circle cx="10" cy="10" r="7" stroke="currentColor" stroke-width="1.5"/>
+      <path d="M10 6V10L13 12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>`,
+    description: 'Sélecteur d\'heure'
+  },
+  {
+    type: 'multiselect',
+    label: 'Sélection multiple',
+    icon: `<svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+      <rect x="3" y="3" width="6" height="6" rx="1" stroke="currentColor" stroke-width="1.5"/>
+      <path d="M4.5 6L5.5 7L7.5 5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+      <rect x="3" y="11" width="6" height="6" rx="1" stroke="currentColor" stroke-width="1.5"/>
+      <path d="M4.5 14L5.5 15L7.5 13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M12 6H17M12 14H17" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+    </svg>`,
+    description: 'Plusieurs choix possibles'
   }
 ]
 

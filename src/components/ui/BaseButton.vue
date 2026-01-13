@@ -71,20 +71,20 @@ defineEmits(['click'])
 
 /* Sizes */
 .size-sm {
-  height: 32px;
-  padding: 0 var(--space-md);
-  font-size: var(--text-sm);
-}
-
-.size-md {
-  height: 40px;
+  height: 36px;
   padding: 0 var(--space-lg);
   font-size: var(--text-sm);
 }
 
-.size-lg {
-  height: 48px;
+.size-md {
+  height: 42px;
   padding: 0 var(--space-xl);
+  font-size: var(--text-sm);
+}
+
+.size-lg {
+  height: 50px;
+  padding: 0 var(--space-2xl);
   font-size: var(--text-base);
 }
 

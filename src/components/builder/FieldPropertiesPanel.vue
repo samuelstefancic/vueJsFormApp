@@ -37,12 +37,14 @@ const typeLabels = {
   select: 'Liste déroulante',
   checkbox: 'Case à cocher',
   date: 'Date',
+  time: 'Heure',
   email: 'Email',
   phone: 'Téléphone',
   url: 'URL',
   rating: 'Notation',
   radio: 'Boutons radio',
-  slider: 'Curseur'
+  slider: 'Curseur',
+  multiselect: 'Sélection multiple'
 }
 
 function updateLabel(value) {
@@ -142,7 +144,7 @@ function updateMaxRating(value) {
         </section>
 
         <section
-          v-if="['text', 'textarea', 'number', 'date', 'email', 'phone', 'url'].includes(selectedField.type)"
+          v-if="['text', 'textarea', 'number', 'date', 'time', 'email', 'phone', 'url'].includes(selectedField.type)"
           class="property-section"
         >
           <h3 class="section-title">Affichage</h3>
@@ -182,7 +184,7 @@ function updateMaxRating(value) {
           </div>
         </section>
 
-        <section v-if="selectedField.type === 'select' || selectedField.type === 'radio'" class="property-section">
+        <section v-if="selectedField.type === 'select' || selectedField.type === 'radio' || selectedField.type === 'multiselect'" class="property-section">
           <h3 class="section-title">Options</h3>
 
           <OptionEditor

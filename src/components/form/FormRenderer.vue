@@ -43,6 +43,22 @@ function updateValue(fieldId, value) {
     [fieldId]: value
   })
 }
+
+function toggleMultiselectOption(fieldId, optionValue, isChecked) {
+  const currentValues = props.values[fieldId] || []
+  let newValues
+
+  if (isChecked) {
+    newValues = [...currentValues, optionValue]
+  } else {
+    newValues = currentValues.filter(v => v !== optionValue)
+  }
+
+  emit('update:values', {
+    ...props.values,
+    [fieldId]: newValues
+  })
+}
 </script>
 
 <template>
@@ -236,6 +252,43 @@ function updateValue(fieldId, value) {
           <div class="slider-labels">
             <span>{{ field.min ?? 0 }}</span>
             <span>{{ field.max ?? 100 }}</span>
+          </div>
+          <span v-if="getError(field.id)" class="field-error">{{ getError(field.id) }}</span>
+        </div>
+
+        <BaseInput
+          v-else-if="field.type === 'time'"
+          :model-value="getValue(field.id)"
+          type="time"
+          :label="field.label"
+          :placeholder="field.placeholder"
+          :required="field.required"
+          :disabled="readonly"
+          :error="getError(field.id)"
+          @update:model-value="updateValue(field.id, $event)"
+        />
+
+        <div v-else-if="field.type === 'multiselect'" class="field-wrapper">
+          <label class="field-label">
+            {{ field.label }}
+            <span v-if="field.required" class="required-mark">*</span>
+          </label>
+          <div class="multiselect-options">
+            <label
+              v-for="option in (field.options || [])"
+              :key="option.value"
+              class="multiselect-option"
+            >
+              <input
+                type="checkbox"
+                :value="option.value"
+                :checked="(getValue(field.id) || []).includes(option.value)"
+                :disabled="readonly"
+                @change="toggleMultiselectOption(field.id, option.value, $event.target.checked)"
+              />
+              <span class="multiselect-checkbox"></span>
+              <span class="multiselect-label">{{ option.label }}</span>
+            </label>
           </div>
           <span v-if="getError(field.id)" class="field-error">{{ getError(field.id) }}</span>
         </div>
@@ -502,5 +555,71 @@ function updateValue(fieldId, value) {
   justify-content: space-between;
   font-size: var(--text-xs);
   color: var(--color-text-muted);
+}
+
+/* Multiselect field styles */
+.multiselect-options {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.multiselect-option {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  cursor: pointer;
+  padding: var(--space-sm);
+  border-radius: var(--radius-md);
+  transition: background-color var(--transition-fast);
+}
+
+.multiselect-option:hover {
+  background-color: var(--color-bg-hover);
+}
+
+.multiselect-option input[type="checkbox"] {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.multiselect-checkbox {
+  width: 20px;
+  height: 20px;
+  border: 2px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background-color: var(--color-bg);
+  position: relative;
+  transition: border-color var(--transition-fast), background-color var(--transition-fast);
+  flex-shrink: 0;
+}
+
+.multiselect-option input[type="checkbox"]:checked + .multiselect-checkbox {
+  border-color: var(--color-accent);
+  background-color: var(--color-accent);
+}
+
+.multiselect-option input[type="checkbox"]:checked + .multiselect-checkbox::after {
+  content: '';
+  position: absolute;
+  top: 3px;
+  left: 6px;
+  width: 5px;
+  height: 9px;
+  border: solid white;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+
+.multiselect-option input[type="checkbox"]:disabled + .multiselect-checkbox {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.multiselect-label {
+  font-size: var(--text-sm);
+  color: var(--color-text);
 }
 </style>

@@ -260,7 +260,7 @@ const formData = computed(() => {
 .header-actions {
   display: flex;
   align-items: center;
-  gap: var(--space-sm);
+  gap: var(--space-md);
 }
 
 /* Content */

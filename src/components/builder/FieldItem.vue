@@ -48,6 +48,40 @@ const typeIcons = {
   date: `<svg width="16" height="16" viewBox="0 0 16 16" fill="none">
     <rect x="2" y="3" width="12" height="11" rx="2" stroke="currentColor" stroke-width="1.5"/>
     <path d="M2 7H14M5 1V4M11 1V4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+  </svg>`,
+  time: `<svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+    <circle cx="8" cy="8" r="6" stroke="currentColor" stroke-width="1.5"/>
+    <path d="M8 4V8L10 10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+  </svg>`,
+  email: `<svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+    <rect x="2" y="3" width="12" height="10" rx="2" stroke="currentColor" stroke-width="1.5"/>
+    <path d="M2 5L8 9L14 5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+  </svg>`,
+  phone: `<svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+    <path d="M3 3C3 2.45 3.45 2 4 2H6L7 5L5.5 6.5C6.4 8.3 7.7 9.6 9.5 10.5L11 9L14 10V12C14 12.55 13.55 13 13 13C7.5 13 3 8.5 3 3Z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+  </svg>`,
+  url: `<svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+    <path d="M6 10L10 6M7 5H5C3.9 5 3 5.9 3 7C3 8.1 3.9 9 5 9H7M9 5H11C12.1 5 13 5.9 13 7C13 8.1 12.1 9 11 9H9" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+  </svg>`,
+  rating: `<svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+    <path d="M8 2L9.5 5.5L13 6L10.5 8.5L11 12L8 10.5L5 12L5.5 8.5L3 6L6.5 5.5L8 2Z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+  </svg>`,
+  radio: `<svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+    <circle cx="5" cy="5" r="2.5" stroke="currentColor" stroke-width="1.5"/>
+    <circle cx="5" cy="5" r="1" fill="currentColor"/>
+    <circle cx="5" cy="11" r="2.5" stroke="currentColor" stroke-width="1.5"/>
+    <path d="M10 5H14M10 11H14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+  </svg>`,
+  slider: `<svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+    <path d="M2 8H14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+    <circle cx="10" cy="8" r="2.5" stroke="currentColor" stroke-width="1.5" fill="var(--color-bg)"/>
+  </svg>`,
+  multiselect: `<svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+    <rect x="2" y="2" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.5"/>
+    <path d="M3.5 4.5L4.5 5.5L6.5 3.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+    <rect x="2" y="9" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.5"/>
+    <path d="M3.5 11.5L4.5 12.5L6.5 10.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+    <path d="M10 5H14M10 12H14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
   </svg>`
 }
 
@@ -57,7 +91,15 @@ const typeLabels = {
   number: 'Nombre',
   select: 'Liste',
   checkbox: 'Case à cocher',
-  date: 'Date'
+  date: 'Date',
+  time: 'Heure',
+  email: 'Email',
+  phone: 'Téléphone',
+  url: 'URL',
+  rating: 'Notation',
+  radio: 'Boutons radio',
+  slider: 'Curseur',
+  multiselect: 'Multi-sélection'
 }
 
 const typeLabel = computed(() => typeLabels[props.field.type] || props.field.type)

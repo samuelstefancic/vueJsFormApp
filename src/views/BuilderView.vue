@@ -17,6 +17,69 @@ const router = useRouter()
 const store = useFormBuilderStore()
 const templatesStore = useTemplatesStore()
 
+// Keyboard shortcuts
+function handleKeyDown(e) {
+  // Don't trigger shortcuts when typing in inputs
+  if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable) {
+    return
+  }
+
+  const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0
+  const ctrlKey = isMac ? e.metaKey : e.ctrlKey
+
+  // Ctrl/Cmd + S: Save
+  if (ctrlKey && e.key === 's') {
+    e.preventDefault()
+    handleSave()
+    return
+  }
+
+  // Ctrl/Cmd + D: Duplicate selected field
+  if (ctrlKey && e.key === 'd' && store.selectedFieldId) {
+    e.preventDefault()
+    store.duplicateField(store.selectedFieldId)
+    showToast('Champ dupliqué', 'success')
+    return
+  }
+
+  // Delete/Backspace: Delete selected field
+  if ((e.key === 'Delete' || e.key === 'Backspace') && store.selectedFieldId) {
+    e.preventDefault()
+    store.removeField(store.selectedFieldId)
+    showToast('Champ supprimé', 'info')
+    return
+  }
+
+  // Escape: Deselect field
+  if (e.key === 'Escape') {
+    if (store.selectedFieldId) {
+      store.selectField(null)
+    }
+    return
+  }
+
+  // Arrow keys: Move field up/down
+  if (e.key === 'ArrowUp' && ctrlKey && store.selectedFieldId) {
+    e.preventDefault()
+    store.moveField(store.selectedFieldId, 'up')
+    return
+  }
+
+  if (e.key === 'ArrowDown' && ctrlKey && store.selectedFieldId) {
+    e.preventDefault()
+    store.moveField(store.selectedFieldId, 'down')
+    return
+  }
+}
+
+onMounted(() => {
+  document.addEventListener('keydown', handleKeyDown)
+})
+
+onUnmounted(() => {
+  document.removeEventListener('keydown', handleKeyDown)
+})
+
 // Auto-save setup
 const AUTO_SAVE_DELAY = 2000
 let autoSaveTimer = null
@@ -616,7 +679,8 @@ const fieldCount = computed(() => store.schema.fields.length)
 .header-actions {
   display: flex;
   align-items: center;
-  gap: var(--space-sm);
+  gap: var(--space-md);
+  flex-wrap: wrap;
 }
 
 /* Main content */

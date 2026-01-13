@@ -44,12 +44,14 @@ function createField(type, existingNames) {
     select: 'Liste déroulante',
     checkbox: 'Case à cocher',
     date: 'Date',
+    time: 'Heure',
     email: 'Email',
     phone: 'Téléphone',
     url: 'URL',
     rating: 'Notation',
     radio: 'Boutons radio',
-    slider: 'Curseur'
+    slider: 'Curseur',
+    multiselect: 'Sélection multiple'
   }
 
   const label = typeLabels[type] || 'Nouveau champ'
@@ -94,6 +96,18 @@ function createField(type, existingNames) {
       }
     case 'slider':
       return { ...baseField, min: 0, max: 100, step: 1, defaultValue: 50 }
+    case 'time':
+      return { ...baseField, placeholder: 'HH:MM', defaultValue: '' }
+    case 'multiselect':
+      return {
+        ...baseField,
+        options: [
+          { value: 'option1', label: 'Option 1' },
+          { value: 'option2', label: 'Option 2' },
+          { value: 'option3', label: 'Option 3' }
+        ],
+        defaultValue: []
+      }
     default:
       return baseField
   }
