@@ -54,6 +54,59 @@ const fieldTypes = [
       <path d="M3 8H17M7 2V5M13 2V5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
     </svg>`,
     description: 'Sélecteur de date'
+  },
+  {
+    type: 'email',
+    label: 'Email',
+    icon: `<svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+      <rect x="2" y="4" width="16" height="12" rx="2" stroke="currentColor" stroke-width="1.5"/>
+      <path d="M2 6L10 11L18 6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>`,
+    description: 'Adresse email'
+  },
+  {
+    type: 'phone',
+    label: 'Téléphone',
+    icon: `<svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+      <path d="M3 4C3 3.44772 3.44772 3 4 3H7L8.5 7L6.5 8.5C7.57096 10.6715 9.32848 12.429 11.5 13.5L13 11.5L17 13V16C17 16.5523 16.5523 17 16 17C9.37258 17 4 11.6274 4 5V4Z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>`,
+    description: 'Numéro de téléphone'
+  },
+  {
+    type: 'url',
+    label: 'URL',
+    icon: `<svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+      <path d="M8 12L12 8M9 7H7C5.34315 7 4 8.34315 4 10C4 11.6569 5.34315 13 7 13H9M11 7H13C14.6569 7 16 8.34315 16 10C16 11.6569 14.6569 13 13 13H11" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+    </svg>`,
+    description: 'Lien web'
+  },
+  {
+    type: 'rating',
+    label: 'Notation',
+    icon: `<svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+      <path d="M10 2L12.09 6.26L17 7L13.5 10.5L14.18 15.5L10 13.27L5.82 15.5L6.5 10.5L3 7L7.91 6.26L10 2Z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>`,
+    description: 'Notation par étoiles'
+  },
+  {
+    type: 'radio',
+    label: 'Boutons radio',
+    icon: `<svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+      <circle cx="6" cy="6" r="3" stroke="currentColor" stroke-width="1.5"/>
+      <circle cx="6" cy="6" r="1.5" fill="currentColor"/>
+      <circle cx="6" cy="14" r="3" stroke="currentColor" stroke-width="1.5"/>
+      <path d="M12 6H17M12 14H17" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+    </svg>`,
+    description: 'Choix unique'
+  },
+  {
+    type: 'slider',
+    label: 'Curseur',
+    icon: `<svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+      <path d="M3 10H17" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+      <circle cx="12" cy="10" r="3" stroke="currentColor" stroke-width="1.5" fill="var(--color-bg)"/>
+    </svg>`,
+    description: 'Valeur avec curseur'
   }
 ]
 

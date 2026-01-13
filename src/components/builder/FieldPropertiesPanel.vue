@@ -15,6 +15,8 @@ const localName = ref('')
 const localPlaceholder = ref('')
 const localMin = ref(null)
 const localMax = ref(null)
+const localStep = ref(1)
+const localMaxRating = ref(5)
 
 watch(selectedField, (field) => {
   if (field) {
@@ -23,6 +25,8 @@ watch(selectedField, (field) => {
     localPlaceholder.value = field.placeholder || ''
     localMin.value = field.min ?? null
     localMax.value = field.max ?? null
+    localStep.value = field.step ?? 1
+    localMaxRating.value = field.maxRating ?? 5
   }
 }, { immediate: true })
 
@@ -32,7 +36,13 @@ const typeLabels = {
   number: 'Nombre',
   select: 'Liste déroulante',
   checkbox: 'Case à cocher',
-  date: 'Date'
+  date: 'Date',
+  email: 'Email',
+  phone: 'Téléphone',
+  url: 'URL',
+  rating: 'Notation',
+  radio: 'Boutons radio',
+  slider: 'Curseur'
 }
 
 function updateLabel(value) {
@@ -77,6 +87,18 @@ function updateOptions(options) {
 function updateCheckboxDefault(value) {
   store.updateField(selectedField.value.id, { defaultValue: value })
 }
+
+function updateStep(value) {
+  const numValue = value === '' ? 1 : Number(value)
+  localStep.value = numValue
+  store.updateField(selectedField.value.id, { step: numValue })
+}
+
+function updateMaxRating(value) {
+  const numValue = value === '' ? 5 : Number(value)
+  localMaxRating.value = numValue
+  store.updateField(selectedField.value.id, { maxRating: numValue })
+}
 </script>
 
 <template>
@@ -120,7 +142,7 @@ function updateCheckboxDefault(value) {
         </section>
 
         <section
-          v-if="['text', 'textarea', 'number', 'date'].includes(selectedField.type)"
+          v-if="['text', 'textarea', 'number', 'date', 'email', 'phone', 'url'].includes(selectedField.type)"
           class="property-section"
         >
           <h3 class="section-title">Affichage</h3>
@@ -160,7 +182,7 @@ function updateCheckboxDefault(value) {
           </div>
         </section>
 
-        <section v-if="selectedField.type === 'select'" class="property-section">
+        <section v-if="selectedField.type === 'select' || selectedField.type === 'radio'" class="property-section">
           <h3 class="section-title">Options</h3>
 
           <OptionEditor
@@ -182,7 +204,7 @@ function updateCheckboxDefault(value) {
         </section>
 
         <section
-          v-if="['text', 'number'].includes(selectedField.type)"
+          v-if="['text', 'number', 'email', 'phone', 'url'].includes(selectedField.type)"
           class="property-section"
         >
           <h3 class="section-title">Valeur par défaut</h3>
@@ -193,6 +215,77 @@ function updateCheckboxDefault(value) {
               :type="selectedField.type === 'number' ? 'number' : 'text'"
               label="Valeur initiale"
               placeholder="Laisser vide pour aucune"
+              @update:model-value="updateDefaultValue"
+            />
+          </div>
+        </section>
+
+        <section v-if="selectedField.type === 'slider'" class="property-section">
+          <h3 class="section-title">Configuration du curseur</h3>
+
+          <div class="property-row">
+            <div class="property-group">
+              <BaseInput
+                :model-value="localMin"
+                type="number"
+                label="Minimum"
+                placeholder="0"
+                @update:model-value="updateMin"
+              />
+            </div>
+            <div class="property-group">
+              <BaseInput
+                :model-value="localMax"
+                type="number"
+                label="Maximum"
+                placeholder="100"
+                @update:model-value="updateMax"
+              />
+            </div>
+          </div>
+
+          <div class="property-group">
+            <BaseInput
+              :model-value="localStep"
+              type="number"
+              label="Pas"
+              placeholder="1"
+              @update:model-value="updateStep"
+            />
+          </div>
+
+          <div class="property-group">
+            <BaseInput
+              :model-value="selectedField.defaultValue || 50"
+              type="number"
+              label="Valeur par défaut"
+              @update:model-value="updateDefaultValue"
+            />
+          </div>
+        </section>
+
+        <section v-if="selectedField.type === 'rating'" class="property-section">
+          <h3 class="section-title">Configuration de la notation</h3>
+
+          <div class="property-group">
+            <BaseInput
+              :model-value="localMaxRating"
+              type="number"
+              label="Nombre d'étoiles"
+              placeholder="5"
+              :min="1"
+              :max="10"
+              @update:model-value="updateMaxRating"
+            />
+          </div>
+
+          <div class="property-group">
+            <BaseInput
+              :model-value="selectedField.defaultValue || 0"
+              type="number"
+              label="Valeur par défaut"
+              :min="0"
+              :max="selectedField.maxRating || 5"
               @update:model-value="updateDefaultValue"
             />
           </div>

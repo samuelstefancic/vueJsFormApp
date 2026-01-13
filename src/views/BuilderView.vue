@@ -1,17 +1,149 @@
 <script setup>
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useFormBuilderStore } from '../stores/formBuilder'
+import { useTemplatesStore } from '../stores/templates'
 import { validateSchema } from '../utils/validation'
 import FieldPalette from '../components/builder/FieldPalette.vue'
 import FormCanvas from '../components/builder/FormCanvas.vue'
 import FieldPropertiesPanel from '../components/builder/FieldPropertiesPanel.vue'
+import TemplateGallery from '../components/builder/TemplateGallery.vue'
+import SavedFormsPanel from '../components/builder/SavedFormsPanel.vue'
 import BaseButton from '../components/ui/BaseButton.vue'
 import BaseModal from '../components/ui/BaseModal.vue'
 import BaseToast from '../components/ui/BaseToast.vue'
 
 const router = useRouter()
 const store = useFormBuilderStore()
+const templatesStore = useTemplatesStore()
+
+// Auto-save setup
+const AUTO_SAVE_DELAY = 2000
+let autoSaveTimer = null
+
+function triggerAutoSave() {
+  if (autoSaveTimer) {
+    clearTimeout(autoSaveTimer)
+  }
+  if (store.currentFormId && store.autoSaveEnabled) {
+    autoSaveTimer = setTimeout(() => {
+      store.saveToStorage()
+      showToast('Sauvegarde automatique', 'info')
+    }, AUTO_SAVE_DELAY)
+  }
+}
+
+// Watch for schema changes to trigger auto-save
+watch(
+  () => store.schema,
+  () => {
+    if (store.currentFormId && store.isDirty) {
+      triggerAutoSave()
+    }
+  },
+  { deep: true }
+)
+
+onUnmounted(() => {
+  if (autoSaveTimer) {
+    clearTimeout(autoSaveTimer)
+  }
+})
+
+// Saved forms panel
+const showSavedFormsPanel = ref(false)
+
+function openSavedFormsPanel() {
+  showSavedFormsPanel.value = true
+}
+
+function closeSavedFormsPanel() {
+  showSavedFormsPanel.value = false
+}
+
+// Load confirmation dialog (when there are unsaved changes)
+const showLoadConfirmModal = ref(false)
+const pendingLoadForm = ref(null)
+
+function handleLoadFromPanel(form) {
+  if (store.isDirty) {
+    pendingLoadForm.value = form
+    showLoadConfirmModal.value = true
+  } else {
+    loadFormDirectly(form)
+  }
+}
+
+function loadFormDirectly(form) {
+  store.loadFromStorage(form.id)
+  showSavedFormsPanel.value = false
+  showToast(`Formulaire "${form.title}" charge`, 'success')
+}
+
+function confirmLoad() {
+  if (pendingLoadForm.value) {
+    loadFormDirectly(pendingLoadForm.value)
+  }
+  showLoadConfirmModal.value = false
+  pendingLoadForm.value = null
+}
+
+function cancelLoad() {
+  showLoadConfirmModal.value = false
+  pendingLoadForm.value = null
+}
+
+function handleDeleteFromPanel(formId) {
+  if (store.currentFormId === formId) {
+    store.resetToNew()
+  }
+  showToast('Formulaire supprime', 'info')
+}
+
+// Save / Save As functionality
+const showSaveAsModal = ref(false)
+const saveAsTitle = ref('')
+
+function handleSave() {
+  store.saveToStorage()
+  showToast('Formulaire sauvegarde', 'success')
+}
+
+function openSaveAsModal() {
+  saveAsTitle.value = store.schema.title
+  showSaveAsModal.value = true
+}
+
+function handleSaveAs() {
+  if (saveAsTitle.value.trim()) {
+    store.saveAsNewForm(saveAsTitle.value.trim())
+    showSaveAsModal.value = false
+    showToast('Formulaire sauvegarde sous un nouveau nom', 'success')
+  }
+}
+
+// Format last saved time
+function formatLastSaved(timestamp) {
+  if (!timestamp) return ''
+
+  const date = new Date(timestamp)
+  const now = new Date()
+  const diff = now - date
+
+  if (diff < 60000) {
+    return "A l'instant"
+  }
+
+  if (diff < 3600000) {
+    const minutes = Math.floor(diff / 60000)
+    return `Il y a ${minutes} min`
+  }
+
+  return date.toLocaleTimeString('fr-FR', {
+    hour: '2-digit',
+    minute: '2-digit'
+  })
+}
 
 const isEditingTitle = ref(false)
 const editedTitle = ref('')
@@ -33,6 +165,40 @@ function cancelEditTitle() {
 const showImportModal = ref(false)
 const importJson = ref('')
 const importError = ref('')
+
+const showTemplateGallery = ref(false)
+
+function openTemplateGallery() {
+  templatesStore.setCategory('all')
+  showTemplateGallery.value = true
+}
+
+function handleTemplateSelect(template) {
+  store.loadFromTemplate(template)
+  showTemplateGallery.value = false
+  showToast(`Modele "${template.name}" charge avec succes`, 'success')
+}
+
+// New form confirmation
+const showNewFormConfirmModal = ref(false)
+
+function handleNewForm() {
+  if (store.isDirty) {
+    showNewFormConfirmModal.value = true
+  } else {
+    createNewFormDirectly()
+  }
+}
+
+function createNewFormDirectly() {
+  store.resetToNew()
+  showNewFormConfirmModal.value = false
+  showToast('Nouveau formulaire cree', 'success')
+}
+
+function cancelNewForm() {
+  showNewFormConfirmModal.value = false
+}
 
 function openImportModal() {
   importJson.value = ''
@@ -142,9 +308,55 @@ const fieldCount = computed(() => store.schema.fields.length)
           </template>
         </div>
         <span class="field-count">{{ fieldCount }} champ{{ fieldCount !== 1 ? 's' : '' }}</span>
+        <span v-if="store.isDirty" class="unsaved-indicator" title="Modifications non sauvegardees">
+          <span class="unsaved-dot"></span>
+          Non sauvegarde
+        </span>
+        <span v-else-if="store.lastSavedAt" class="saved-indicator" :title="'Derniere sauvegarde: ' + formatLastSaved(store.lastSavedAt)">
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+            <path d="M3 7L6 10L11 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          {{ formatLastSaved(store.lastSavedAt) }}
+        </span>
       </div>
 
       <div class="header-actions">
+        <BaseButton variant="secondary" size="sm" @click="openSavedFormsPanel">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+            <rect x="2" y="2" width="12" height="12" rx="2" stroke="currentColor" stroke-width="1.5"/>
+            <path d="M5 2V6H11V2M5 14V9H11V14" stroke="currentColor" stroke-width="1.5"/>
+          </svg>
+          Mes formulaires
+        </BaseButton>
+        <BaseButton variant="secondary" size="sm" @click="handleSave" :disabled="!store.isDirty && store.currentFormId">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+            <path d="M12 14H4C3.44772 14 3 13.5523 3 13V3C3 2.44772 3.44772 2 4 2H10L13 5V13C13 13.5523 12.5523 14 12 14Z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M10 2V5H13M6 10H10M6 12H8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          Sauvegarder
+        </BaseButton>
+        <BaseButton variant="ghost" size="sm" @click="openSaveAsModal">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+            <path d="M12 14H4C3.44772 14 3 13.5523 3 13V3C3 2.44772 3.44772 2 4 2H10L13 5V13C13 13.5523 12.5523 14 12 14Z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M7 8H11M9 6V10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+          </svg>
+          Enregistrer sous
+        </BaseButton>
+        <BaseButton variant="ghost" size="sm" @click="handleNewForm">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+            <path d="M8 3V13M3 8H13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+          </svg>
+          Nouveau
+        </BaseButton>
+        <BaseButton variant="secondary" size="sm" @click="openTemplateGallery">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+            <rect x="2" y="2" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.5"/>
+            <rect x="9" y="2" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.5"/>
+            <rect x="2" y="9" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.5"/>
+            <rect x="9" y="9" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.5"/>
+          </svg>
+          Modeles
+        </BaseButton>
         <BaseButton variant="secondary" size="sm" @click="openImportModal">
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
             <path d="M8 10V2M8 10L5 7M8 10L11 7M2 14H14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
@@ -189,6 +401,78 @@ const fieldCount = computed(() => store.schema.fields.length)
           rows="10"
         ></textarea>
         <p v-if="importError" class="import-error">{{ importError }}</p>
+      </div>
+    </BaseModal>
+
+    <Teleport to="body">
+      <Transition name="modal">
+        <div v-if="showTemplateGallery" class="template-modal-backdrop" @click.self="showTemplateGallery = false">
+          <div class="template-modal-content">
+            <button class="template-modal-close" @click="showTemplateGallery = false" aria-label="Fermer">
+              <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                <path d="M15 5L5 15M5 5L15 15" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+              </svg>
+            </button>
+            <TemplateGallery
+              @select="handleTemplateSelect"
+              @close="showTemplateGallery = false"
+            />
+          </div>
+        </div>
+      </Transition>
+    </Teleport>
+
+    <!-- Saved Forms Panel -->
+    <SavedFormsPanel
+      :open="showSavedFormsPanel"
+      @close="closeSavedFormsPanel"
+      @load="handleLoadFromPanel"
+      @delete="handleDeleteFromPanel"
+    />
+
+    <!-- Load Confirmation Modal -->
+    <BaseModal
+      :open="showLoadConfirmModal"
+      title="Modifications non sauvegardees"
+      confirm-text="Charger quand meme"
+      cancel-text="Annuler"
+      variant="danger"
+      @close="cancelLoad"
+      @confirm="confirmLoad"
+    >
+      <p>Vous avez des modifications non sauvegardees. Si vous chargez un autre formulaire, ces modifications seront perdues.</p>
+    </BaseModal>
+
+    <!-- New Form Confirmation Modal -->
+    <BaseModal
+      :open="showNewFormConfirmModal"
+      title="Modifications non sauvegardees"
+      confirm-text="Nouveau formulaire"
+      cancel-text="Annuler"
+      variant="danger"
+      @close="cancelNewForm"
+      @confirm="createNewFormDirectly"
+    >
+      <p>Vous avez des modifications non sauvegardees. Si vous creez un nouveau formulaire, ces modifications seront perdues.</p>
+    </BaseModal>
+
+    <!-- Save As Modal -->
+    <BaseModal
+      :open="showSaveAsModal"
+      title="Enregistrer sous"
+      confirm-text="Enregistrer"
+      @close="showSaveAsModal = false"
+      @confirm="handleSaveAs"
+    >
+      <div class="save-as-content">
+        <label class="save-as-label">Nom du formulaire</label>
+        <input
+          v-model="saveAsTitle"
+          type="text"
+          class="save-as-input"
+          placeholder="Nom du formulaire"
+          @keyup.enter="handleSaveAs"
+        />
       </div>
     </BaseModal>
 
@@ -293,6 +577,42 @@ const fieldCount = computed(() => store.schema.fields.length)
   border-radius: var(--radius-full);
 }
 
+/* Unsaved/Saved indicators */
+.unsaved-indicator {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  font-size: var(--text-xs);
+  color: var(--color-warning);
+  padding: var(--space-xs) var(--space-sm);
+}
+
+.unsaved-dot {
+  width: 8px;
+  height: 8px;
+  background-color: var(--color-warning);
+  border-radius: 50%;
+  animation: pulse 2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+.saved-indicator {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  font-size: var(--text-xs);
+  color: var(--color-success);
+  padding: var(--space-xs) var(--space-sm);
+}
+
 .header-actions {
   display: flex;
   align-items: center;
@@ -344,5 +664,108 @@ const fieldCount = computed(() => store.schema.fields.length)
   padding: var(--space-sm);
   background-color: var(--color-danger-light);
   border-radius: var(--radius-sm);
+}
+
+/* Template gallery modal */
+.template-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-lg);
+  z-index: var(--z-modal-backdrop);
+}
+
+.template-modal-content {
+  position: relative;
+  background-color: var(--color-bg-elevated);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-xl);
+  width: 100%;
+  max-width: 900px;
+  max-height: 85vh;
+  padding: var(--space-xl);
+  z-index: var(--z-modal);
+  overflow: hidden;
+}
+
+.template-modal-close {
+  position: absolute;
+  top: var(--space-md);
+  right: var(--space-md);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-md);
+  color: var(--color-text-muted);
+  z-index: 10;
+  transition:
+    background-color var(--transition-fast),
+    color var(--transition-fast);
+}
+
+.template-modal-close:hover {
+  background-color: var(--color-bg-hover);
+  color: var(--color-text);
+}
+
+/* Modal transitions */
+.modal-enter-active,
+.modal-leave-active {
+  transition:
+    opacity var(--transition-base),
+    transform var(--transition-base);
+}
+
+.modal-enter-active .template-modal-content,
+.modal-leave-active .template-modal-content {
+  transition: transform var(--transition-base);
+}
+
+.modal-enter-from,
+.modal-leave-to {
+  opacity: 0;
+}
+
+.modal-enter-from .template-modal-content,
+.modal-leave-to .template-modal-content {
+  transform: scale(0.95);
+}
+
+/* Save As modal */
+.save-as-content {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.save-as-label {
+  font-size: var(--text-sm);
+  font-weight: var(--font-medium);
+  color: var(--color-text);
+}
+
+.save-as-input {
+  height: 40px;
+  padding: 0 var(--space-md);
+  font-size: var(--text-sm);
+  font-family: var(--font-body);
+  color: var(--color-text);
+  background-color: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  transition:
+    border-color var(--transition-fast),
+    box-shadow var(--transition-fast);
+}
+
+.save-as-input:focus {
+  outline: none;
+  border-color: var(--color-border-focus);
+  box-shadow: var(--ring);
 }
 </style>

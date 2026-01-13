@@ -3,6 +3,38 @@ import { generateId } from '../composables/useId'
 import { slugify, generateUniqueName } from '../utils/slugify'
 import { validateSchema } from '../utils/validation'
 
+const STORAGE_KEY = 'vue-forms-builder-data'
+const AUTO_SAVE_DELAY = 2000
+
+// Debounce helper
+function debounce(fn, delay) {
+  let timeoutId = null
+  return (...args) => {
+    if (timeoutId) {
+      clearTimeout(timeoutId)
+    }
+    timeoutId = setTimeout(() => {
+      fn(...args)
+      timeoutId = null
+    }, delay)
+  }
+}
+
+// Storage helpers
+function getStorageData() {
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY)
+    if (!stored) return { forms: {} }
+    return JSON.parse(stored)
+  } catch {
+    return { forms: {} }
+  }
+}
+
+function setStorageData(data) {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(data))
+}
+
 function createField(type, existingNames) {
   const id = generateId()
   const typeLabels = {
@@ -11,7 +43,13 @@ function createField(type, existingNames) {
     number: 'Nombre',
     select: 'Liste déroulante',
     checkbox: 'Case à cocher',
-    date: 'Date'
+    date: 'Date',
+    email: 'Email',
+    phone: 'Téléphone',
+    url: 'URL',
+    rating: 'Notation',
+    radio: 'Boutons radio',
+    slider: 'Curseur'
   }
 
   const label = typeLabels[type] || 'Nouveau champ'
@@ -37,6 +75,25 @@ function createField(type, existingNames) {
       return { ...baseField, defaultValue: false }
     case 'date':
       return { ...baseField, placeholder: 'jj/mm/aaaa', defaultValue: '' }
+    case 'email':
+      return { ...baseField, placeholder: 'exemple@domaine.com', defaultValue: '' }
+    case 'phone':
+      return { ...baseField, placeholder: '06 12 34 56 78', defaultValue: '' }
+    case 'url':
+      return { ...baseField, placeholder: 'https://exemple.com', defaultValue: '' }
+    case 'rating':
+      return { ...baseField, maxRating: 5, defaultValue: 0 }
+    case 'radio':
+      return {
+        ...baseField,
+        options: [
+          { value: 'option1', label: 'Option 1' },
+          { value: 'option2', label: 'Option 2' }
+        ],
+        defaultValue: ''
+      }
+    case 'slider':
+      return { ...baseField, min: 0, max: 100, step: 1, defaultValue: 50 }
     default:
       return baseField
   }
@@ -49,7 +106,12 @@ export const useFormBuilderStore = defineStore('formBuilder', {
       title: 'Nouveau formulaire',
       fields: []
     },
-    selectedFieldId: null
+    selectedFieldId: null,
+    // Local storage persistence state
+    currentFormId: null,
+    isDirty: false,
+    lastSavedAt: null,
+    autoSaveEnabled: true
   }),
 
   getters: {
@@ -68,6 +130,14 @@ export const useFormBuilderStore = defineStore('formBuilder', {
 
     hasFields(state) {
       return state.schema.fields.length > 0
+    },
+
+    hasUnsavedChanges(state) {
+      return state.isDirty
+    },
+
+    isNewForm(state) {
+      return state.currentFormId === null
     }
   },
 
@@ -76,6 +146,7 @@ export const useFormBuilderStore = defineStore('formBuilder', {
       const field = createField(type, this.fieldNames)
       this.schema.fields.push(field)
       this.selectedFieldId = field.id
+      this.markDirty()
     },
 
     removeField(id) {
@@ -91,6 +162,7 @@ export const useFormBuilderStore = defineStore('formBuilder', {
             this.selectedFieldId = null
           }
         }
+        this.markDirty()
       }
     },
 
@@ -108,6 +180,7 @@ export const useFormBuilderStore = defineStore('formBuilder', {
 
       this.schema.fields.splice(index + 1, 0, newField)
       this.selectedFieldId = newField.id
+      this.markDirty()
     },
 
     updateField(id, patch) {
@@ -132,6 +205,7 @@ export const useFormBuilderStore = defineStore('formBuilder', {
       }
 
       Object.assign(field, patch)
+      this.markDirty()
     },
 
     selectField(id) {
@@ -148,10 +222,12 @@ export const useFormBuilderStore = defineStore('formBuilder', {
       const temp = this.schema.fields[index]
       this.schema.fields[index] = this.schema.fields[newIndex]
       this.schema.fields[newIndex] = temp
+      this.markDirty()
     },
 
     updateTitle(title) {
       this.schema.title = title
+      this.markDirty()
     },
 
     importSchema(json) {
@@ -165,6 +241,9 @@ export const useFormBuilderStore = defineStore('formBuilder', {
 
         this.schema = parsed
         this.selectedFieldId = null
+        this.currentFormId = null
+        this.isDirty = true
+        this.lastSavedAt = null
         return true
       } catch {
         return false
@@ -182,6 +261,135 @@ export const useFormBuilderStore = defineStore('formBuilder', {
         fields: []
       }
       this.selectedFieldId = null
+      this.currentFormId = null
+      this.isDirty = false
+      this.lastSavedAt = null
+    },
+
+    loadFromTemplate(template) {
+      const fields = template.fields.map(field => ({
+        ...JSON.parse(JSON.stringify(field)),
+        id: generateId()
+      }))
+
+      this.schema = {
+        version: 1,
+        title: template.name,
+        fields
+      }
+      this.selectedFieldId = fields.length > 0 ? fields[0].id : null
+      this.markDirty()
+    },
+
+    // Local Storage Persistence Actions
+    markDirty() {
+      this.isDirty = true
+    },
+
+    markClean() {
+      this.isDirty = false
+    },
+
+    // Save current form to localStorage
+    saveToStorage(title = null, forceNewId = false) {
+      const data = getStorageData()
+      const formId = forceNewId ? generateId() : (this.currentFormId || generateId())
+      const now = Date.now()
+
+      const existingForm = data.forms[formId]
+
+      data.forms[formId] = {
+        id: formId,
+        title: title || this.schema.title || 'Formulaire sans titre',
+        schema: JSON.parse(JSON.stringify(this.schema)),
+        createdAt: existingForm?.createdAt || now,
+        updatedAt: now
+      }
+
+      setStorageData(data)
+      this.currentFormId = formId
+      this.isDirty = false
+      this.lastSavedAt = now
+
+      return formId
+    },
+
+    // Save as new form (always creates new entry)
+    saveAsNewForm(title) {
+      return this.saveToStorage(title, true)
+    },
+
+    // Load form from localStorage
+    loadFromStorage(id) {
+      const data = getStorageData()
+      const form = data.forms[id]
+
+      if (form) {
+        this.schema = JSON.parse(JSON.stringify(form.schema))
+        this.currentFormId = id
+        this.isDirty = false
+        this.lastSavedAt = form.updatedAt
+        this.selectedFieldId = null
+        return true
+      }
+
+      return false
+    },
+
+    // Delete form from localStorage
+    deleteFromStorage(id) {
+      const data = getStorageData()
+
+      if (data.forms[id]) {
+        delete data.forms[id]
+        setStorageData(data)
+
+        if (this.currentFormId === id) {
+          this.currentFormId = null
+        }
+
+        return true
+      }
+
+      return false
+    },
+
+    // Get list of saved forms
+    getSavedForms() {
+      const data = getStorageData()
+      return Object.values(data.forms).sort((a, b) => b.updatedAt - a.updatedAt)
+    },
+
+    // Rename a saved form
+    renameInStorage(id, newTitle) {
+      const data = getStorageData()
+
+      if (data.forms[id]) {
+        data.forms[id].title = newTitle
+        data.forms[id].updatedAt = Date.now()
+        setStorageData(data)
+        return true
+      }
+
+      return false
+    },
+
+    // Reset to new form
+    resetToNew() {
+      this.schema = {
+        version: 1,
+        title: 'Nouveau formulaire',
+        fields: []
+      }
+      this.selectedFieldId = null
+      this.currentFormId = null
+      this.isDirty = false
+      this.lastSavedAt = null
+    },
+
+    // Enable/disable auto-save
+    setAutoSave(enabled) {
+      this.autoSaveEnabled = enabled
     }
   }
 })

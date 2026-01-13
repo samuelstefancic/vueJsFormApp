@@ -34,6 +34,7 @@ function validateField(value, field) {
       errors.push(...validateNumber(value, field))
       break
     case 'select':
+    case 'radio':
       errors.push(...validateSelect(value, field))
       break
     case 'text':
@@ -42,6 +43,21 @@ function validateField(value, field) {
       break
     case 'date':
       errors.push(...validateDate(value, field))
+      break
+    case 'email':
+      errors.push(...validateEmail(value))
+      break
+    case 'phone':
+      errors.push(...validatePhone(value))
+      break
+    case 'url':
+      errors.push(...validateUrl(value))
+      break
+    case 'rating':
+      errors.push(...validateRating(value, field))
+      break
+    case 'slider':
+      errors.push(...validateSlider(value, field))
       break
   }
 
@@ -53,8 +69,9 @@ function isValuePresent(value, type) {
     return false
   }
 
+  // For checkbox, required means it must be checked (true)
   if (type === 'checkbox') {
-    return typeof value === 'boolean'
+    return value === true
   }
 
   if (typeof value === 'string') {
@@ -129,6 +146,74 @@ function validateDate(value) {
   return errors
 }
 
+function validateEmail(value) {
+  const errors = []
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+
+  if (!emailRegex.test(String(value))) {
+    errors.push('Email invalide')
+  }
+
+  return errors
+}
+
+function validatePhone(value) {
+  const errors = []
+  // Accepts various phone formats: +33, 06, spaces, dots, dashes
+  const phoneRegex = /^[+]?[(]?[0-9]{1,4}[)]?[-\s./0-9]*$/
+
+  if (!phoneRegex.test(String(value)) || String(value).replace(/\D/g, '').length < 6) {
+    errors.push('Numéro de téléphone invalide')
+  }
+
+  return errors
+}
+
+function validateUrl(value) {
+  const errors = []
+  const urlRegex = /^(https?:\/\/)?([\da-z.-]+)\.([a-z.]{2,6})([/\w .-]*)*\/?$/i
+
+  if (!urlRegex.test(String(value))) {
+    errors.push('URL invalide')
+  }
+
+  return errors
+}
+
+function validateRating(value, field) {
+  const errors = []
+  const numValue = Number(value)
+  const maxRating = field.maxRating || 5
+
+  if (isNaN(numValue) || numValue < 1 || numValue > maxRating) {
+    errors.push(`Notation entre 1 et ${maxRating}`)
+  }
+
+  return errors
+}
+
+function validateSlider(value, field) {
+  const errors = []
+  const numValue = Number(value)
+  const min = field.min ?? 0
+  const max = field.max ?? 100
+
+  if (isNaN(numValue)) {
+    errors.push('Valeur invalide')
+    return errors
+  }
+
+  if (numValue < min) {
+    errors.push(`Minimum: ${min}`)
+  }
+
+  if (numValue > max) {
+    errors.push(`Maximum: ${max}`)
+  }
+
+  return errors
+}
+
 export function validateSchema(schema) {
   const errors = []
 
@@ -149,7 +234,7 @@ export function validateSchema(schema) {
     return { valid: false, errors }
   }
 
-  const validTypes = ['text', 'textarea', 'number', 'select', 'checkbox', 'date']
+  const validTypes = ['text', 'textarea', 'number', 'select', 'checkbox', 'date', 'email', 'phone', 'url', 'rating', 'radio', 'slider']
   const fieldNames = new Set()
   const fieldIds = new Set()
 
@@ -180,7 +265,7 @@ export function validateSchema(schema) {
       errors.push(`Champ ${n}: "label" invalide`)
     }
 
-    if (field.type === 'select') {
+    if (field.type === 'select' || field.type === 'radio') {
       if (!Array.isArray(field.options) || field.options.length === 0) {
         errors.push(`Champ ${n}: options manquantes`)
       } else {
