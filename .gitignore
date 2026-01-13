@@ -11,6 +11,11 @@ node_modules
 dist
 dist-ssr
 *.local
+.claude/*
+y/_bmad/*
+y/.claude/*
+_bmad-*
+y*
 
 # Editor directories and files
 .vscode/*
