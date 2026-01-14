@@ -1,6 +1,6 @@
 <script setup>
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import { useFormBuilderStore } from '../stores/formBuilder'
 import { useTemplatesStore } from '../stores/templates'
 import { validateSchema } from '../utils/validation'
@@ -14,6 +14,7 @@ import BaseModal from '../components/ui/BaseModal.vue'
 import BaseToast from '../components/ui/BaseToast.vue'
 
 const router = useRouter()
+const route = useRoute()
 const store = useFormBuilderStore()
 const templatesStore = useTemplatesStore()
 
@@ -74,6 +75,18 @@ function handleKeyDown(e) {
 
 onMounted(() => {
   document.addEventListener('keydown', handleKeyDown)
+
+  if (route.query.submitted === 'true') {
+    showToast('Formulaire enregistré', 'success', { text: 'Voir mes formulaires', to: '/submissions' })
+    router.replace({ path: '/builder', query: {} })
+  }
+
+  if (route.query.loadForm) {
+    const formId = route.query.loadForm
+    store.loadFromStorage(formId)
+    showToast('Formulaire chargé', 'success')
+    router.replace({ path: '/builder', query: {} })
+  }
 })
 
 onUnmounted(() => {
@@ -239,7 +252,7 @@ function openTemplateGallery() {
 function handleTemplateSelect(template) {
   store.loadFromTemplate(template)
   showTemplateGallery.value = false
-  showToast(`Modele "${template.name}" charge avec succes`, 'success')
+  showToast(`Modele "${template.name}" chargé avec succès`, 'success')
 }
 
 // New form confirmation
@@ -328,11 +341,12 @@ function goToPreview() {
 const toast = ref({
   visible: false,
   message: '',
-  type: 'info'
+  type: 'info',
+  link: null
 })
 
-function showToast(message, type = 'info') {
-  toast.value = { visible: true, message, type }
+function showToast(message, type = 'info', link = null) {
+  toast.value = { visible: true, message, type, link }
 }
 
 function hideToast() {
@@ -371,9 +385,9 @@ const fieldCount = computed(() => store.schema.fields.length)
           </template>
         </div>
         <span class="field-count">{{ fieldCount }} champ{{ fieldCount !== 1 ? 's' : '' }}</span>
-        <span v-if="store.isDirty" class="unsaved-indicator" title="Modifications non sauvegardees">
+        <span v-if="store.isDirty" class="unsaved-indicator" title="Modifications non sauvegardées">
           <span class="unsaved-dot"></span>
-          Non sauvegarde
+          Non sauvegardé
         </span>
         <span v-else-if="store.lastSavedAt" class="saved-indicator" :title="'Derniere sauvegarde: ' + formatLastSaved(store.lastSavedAt)">
           <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
@@ -496,27 +510,27 @@ const fieldCount = computed(() => store.schema.fields.length)
     <!-- Load Confirmation Modal -->
     <BaseModal
       :open="showLoadConfirmModal"
-      title="Modifications non sauvegardees"
+      title="Modifications non sauvegardées"
       confirm-text="Charger quand meme"
       cancel-text="Annuler"
       variant="danger"
       @close="cancelLoad"
       @confirm="confirmLoad"
     >
-      <p>Vous avez des modifications non sauvegardees. Si vous chargez un autre formulaire, ces modifications seront perdues.</p>
+      <p>Vous avez des modifications non sauvegardées. Si vous chargez un autre formulaire, ces modifications seront perdues.</p>
     </BaseModal>
 
     <!-- New Form Confirmation Modal -->
     <BaseModal
       :open="showNewFormConfirmModal"
-      title="Modifications non sauvegardees"
+      title="Modifications non sauvegardées"
       confirm-text="Nouveau formulaire"
       cancel-text="Annuler"
       variant="danger"
       @close="cancelNewForm"
       @confirm="createNewFormDirectly"
     >
-      <p>Vous avez des modifications non sauvegardees. Si vous creez un nouveau formulaire, ces modifications seront perdues.</p>
+      <p>Vous avez des modifications non sauvegardées. Si vous creez un nouveau formulaire, ces modifications seront perdues.</p>
     </BaseModal>
 
     <!-- Save As Modal -->
@@ -543,6 +557,7 @@ const fieldCount = computed(() => store.schema.fields.length)
       :visible="toast.visible"
       :message="toast.message"
       :type="toast.type"
+      :link="toast.link"
       @close="hideToast"
     />
   </div>

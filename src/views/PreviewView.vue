@@ -2,6 +2,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useFormBuilderStore } from '../stores/formBuilder'
+import { useLocalStorage } from '../composables/useLocalStorage'
 import { validate } from '../utils/validation'
 import FormRenderer from '../components/form/FormRenderer.vue'
 import BaseButton from '../components/ui/BaseButton.vue'
@@ -9,6 +10,7 @@ import BaseToast from '../components/ui/BaseToast.vue'
 
 const router = useRouter()
 const store = useFormBuilderStore()
+const { saveSubmission, currentFormId } = useLocalStorage()
 
 const formValues = ref({})
 const formErrors = ref({})
@@ -41,13 +43,26 @@ function updateValues(values) {
   }
 }
 
+function buildSubmissionData() {
+  const data = {}
+  for (const field of store.schema.fields) {
+    data[field.name] = formValues.value[field.id] ?? null
+  }
+  return data
+}
+
 function validateForm() {
   formErrors.value = validate(formValues.value, store.schema)
   isSubmitted.value = true
   isValid.value = Object.keys(formErrors.value).length === 0
 
   if (isValid.value) {
-    showToast('Formulaire valide !', 'success')
+    saveSubmission(
+      currentFormId.value,
+      store.schema.title,
+      buildSubmissionData()
+    )
+    router.push({ path: '/builder', query: { submitted: 'true' } })
   } else {
     showToast('Veuillez corriger les erreurs', 'error')
   }

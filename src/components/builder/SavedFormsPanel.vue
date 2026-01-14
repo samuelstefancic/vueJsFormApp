@@ -149,12 +149,12 @@ function handleLoad(form) {
                     </svg>
                   </button>
                   <button
-                    class="action-button load-button"
+                    class="action-button edit-button"
                     @click="handleLoad(form)"
-                    title="Charger"
+                    title="Modifier dans le builder"
                   >
                     <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                      <path d="M2 13H14M8 2V10M8 10L5 7M8 10L11 7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                      <path d="M2 14H14M3 11L11.5 2.5L13.5 4.5L5 13H3V11Z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
                     </svg>
                   </button>
                   <button
@@ -393,7 +393,7 @@ function handleLoad(form) {
   color: var(--color-text);
 }
 
-.load-button:hover {
+.edit-button:hover {
   background-color: var(--color-accent-light);
   color: var(--color-accent);
 }

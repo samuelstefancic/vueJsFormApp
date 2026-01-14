@@ -1,6 +1,7 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import BuilderView from '../views/BuilderView.vue'
 import PreviewView from '../views/PreviewView.vue'
+import SubmissionsView from '../views/SubmissionsView.vue'
 
 const routes = [
   {
@@ -21,6 +22,14 @@ const routes = [
     component: PreviewView,
     meta: {
       title: 'Prévisualisation'
+    }
+  },
+  {
+    path: '/submissions',
+    name: 'submissions',
+    component: SubmissionsView,
+    meta: {
+      title: 'Mes formulaires'
     }
   }
 ]

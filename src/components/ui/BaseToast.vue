@@ -1,5 +1,6 @@
 <script setup>
 import { watch, onMounted } from 'vue'
+import { RouterLink } from 'vue-router'
 
 const props = defineProps({
   message: {
@@ -18,6 +19,10 @@ const props = defineProps({
   visible: {
     type: Boolean,
     default: false
+  },
+  link: {
+    type: Object,
+    default: null
   }
 })
 
@@ -67,7 +72,12 @@ const icons = {
     <Transition name="toast">
       <div v-if="visible" :class="['toast', `toast-${type}`]">
         <span class="toast-icon" v-html="icons[type]"></span>
-        <span class="toast-message">{{ message }}</span>
+        <div class="toast-content">
+          <span class="toast-message">{{ message }}</span>
+          <RouterLink v-if="link" :to="link.to" class="toast-link" @click="$emit('close')">
+            {{ link.text }}
+          </RouterLink>
+        </div>
         <button class="toast-close" @click="$emit('close')" aria-label="Fermer">
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
             <path d="M12 4L4 12M4 4L12 12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
@@ -101,10 +111,28 @@ const icons = {
   flex-shrink: 0;
 }
 
+.toast-content {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+
 .toast-message {
   font-size: var(--text-sm);
   font-weight: var(--font-medium);
   color: var(--color-text);
+}
+
+.toast-link {
+  font-size: var(--text-xs);
+  font-weight: var(--font-medium);
+  color: var(--color-accent);
+  text-decoration: underline;
+  transition: color var(--transition-fast);
+}
+
+.toast-link:hover {
+  color: var(--color-accent-hover);
 }
 
 .toast-close {

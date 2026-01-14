@@ -17,18 +17,22 @@ function debounce(fn, delay) {
   }
 }
 
-// Initialize storage structure if not exists
 function initStorage() {
   const stored = localStorage.getItem(STORAGE_KEY)
   if (!stored) {
-    const initial = { forms: {} }
+    const initial = { forms: {}, submissions: {} }
     localStorage.setItem(STORAGE_KEY, JSON.stringify(initial))
     return initial
   }
   try {
-    return JSON.parse(stored)
+    const data = JSON.parse(stored)
+    if (!data.submissions) {
+      data.submissions = {}
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(data))
+    }
+    return data
   } catch {
-    const initial = { forms: {} }
+    const initial = { forms: {}, submissions: {} }
     localStorage.setItem(STORAGE_KEY, JSON.stringify(initial))
     return initial
   }
@@ -46,6 +50,7 @@ function setStorageData(data) {
 
 export function useLocalStorage() {
   const savedForms = ref([])
+  const savedSubmissions = ref([])
   const currentFormId = ref(null)
   const isDirty = ref(false)
   const lastSavedAt = ref(null)
@@ -225,11 +230,55 @@ export function useLocalStorage() {
     })
   }
 
-  // Initialize on first use
+  function loadSubmissions() {
+    const data = getStorageData()
+    savedSubmissions.value = Object.values(data.submissions)
+      .sort((a, b) => b.submittedAt - a.submittedAt)
+    return savedSubmissions.value
+  }
+
+  function saveSubmission(formId, formTitle, submissionData) {
+    const data = getStorageData()
+    const submissionId = generateId()
+    const now = Date.now()
+
+    data.submissions[submissionId] = {
+      id: submissionId,
+      formId: formId || null,
+      formTitle: formTitle || 'Formulaire sans titre',
+      data: JSON.parse(JSON.stringify(submissionData)),
+      submittedAt: now
+    }
+
+    setStorageData(data)
+    loadSubmissions()
+    return submissionId
+  }
+
+  function deleteSubmission(id) {
+    const data = getStorageData()
+
+    if (data.submissions[id]) {
+      delete data.submissions[id]
+      setStorageData(data)
+      loadSubmissions()
+      return true
+    }
+
+    return false
+  }
+
+  function getSubmissionById(id) {
+    const data = getStorageData()
+    return data.submissions[id] || null
+  }
+
   loadSavedForms()
+  loadSubmissions()
 
   return {
     savedForms,
+    savedSubmissions,
     currentFormId,
     isDirty,
     lastSavedAt,
@@ -244,6 +293,10 @@ export function useLocalStorage() {
     resetFormState,
     createAutoSave,
     setupAutoSave,
-    formatDate
+    formatDate,
+    loadSubmissions,
+    saveSubmission,
+    deleteSubmission,
+    getSubmissionById
   }
 }
