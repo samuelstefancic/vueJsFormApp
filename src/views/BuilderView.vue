@@ -4,6 +4,7 @@ import { useRouter, useRoute } from 'vue-router'
 import { useFormBuilderStore } from '../stores/formBuilder'
 import { useTemplatesStore } from '../stores/templates'
 import { validateSchema } from '../utils/validation'
+import { generateWebComponent, generateEmbedCode } from '../utils/webComponentGenerator'
 import FieldPalette from '../components/builder/FieldPalette.vue'
 import FormCanvas from '../components/builder/FormCanvas.vue'
 import FieldPropertiesPanel from '../components/builder/FieldPropertiesPanel.vue'
@@ -353,6 +354,70 @@ function hideToast() {
   toast.value.visible = false
 }
 
+const showExportModal = ref(false)
+const exportEmail = ref('')
+const exportSubject = ref('Nouvelle soumission de formulaire')
+const exportComponentName = ref('dynamic-form')
+const generatedCode = ref('')
+const embedCode = ref('')
+
+function openExportModal() {
+  if (store.schema.fields.length === 0) {
+    showToast('Ajoutez des champs avant d\'exporter', 'error')
+    return
+  }
+  exportSubject.value = `Soumission: ${store.schema.title}`
+  generatedCode.value = ''
+  embedCode.value = ''
+  showExportModal.value = true
+}
+
+function generateExport() {
+  if (!exportEmail.value.trim()) {
+    showToast('Veuillez entrer une adresse email', 'error')
+    return
+  }
+
+  generatedCode.value = generateWebComponent(store.schema, {
+    emailTo: exportEmail.value.trim(),
+    emailSubject: exportSubject.value,
+    componentName: exportComponentName.value
+  })
+
+  embedCode.value = generateEmbedCode(exportComponentName.value)
+}
+
+function downloadWebComponent() {
+  if (!generatedCode.value) {
+    generateExport()
+  }
+
+  const blob = new Blob([generatedCode.value], { type: 'application/javascript' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `${exportComponentName.value}.js`
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  URL.revokeObjectURL(url)
+
+  showToast('Web Component téléchargé', 'success')
+}
+
+async function copyEmbedCode() {
+  if (!embedCode.value) {
+    generateExport()
+  }
+
+  try {
+    await navigator.clipboard.writeText(embedCode.value)
+    showToast('Code d\'intégration copié', 'success')
+  } catch (e) {
+    showToast('Erreur lors de la copie', 'error')
+  }
+}
+
 const fieldCount = computed(() => store.schema.fields.length)
 </script>
 
@@ -443,6 +508,12 @@ const fieldCount = computed(() => store.schema.fields.length)
         <BaseButton variant="secondary" size="sm" @click="handleExport">
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
             <path d="M8 2V10M8 2L5 5M8 2L11 5M2 14H14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          Exporter
+        </BaseButton>
+        <BaseButton variant="secondary" size="sm" @click="openExportModal">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+            <path d="M8 2V10M8 10L5 7M8 10L11 7M2 14H14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
           </svg>
           Exporter
         </BaseButton>
@@ -550,6 +621,71 @@ const fieldCount = computed(() => store.schema.fields.length)
           placeholder="Nom du formulaire"
           @keyup.enter="handleSaveAs"
         />
+      </div>
+    </BaseModal>
+
+    <BaseModal
+      :open="showExportModal"
+      title="Exporter en Web Component"
+      confirm-text="Télécharger"
+      @close="showExportModal = false"
+      @confirm="downloadWebComponent"
+    >
+      <div class="export-content">
+        <p class="export-description">
+          Générez un Web Component autonome utilisable sur n'importe quel site web.
+          Les soumissions seront envoyées par email.
+        </p>
+
+        <div class="export-field">
+          <label class="export-label">Email de réception *</label>
+          <input
+            v-model="exportEmail"
+            type="email"
+            class="export-input"
+            placeholder="votre@email.com"
+            @input="generatedCode = ''"
+          />
+        </div>
+
+        <div class="export-field">
+          <label class="export-label">Sujet de l'email</label>
+          <input
+            v-model="exportSubject"
+            type="text"
+            class="export-input"
+            placeholder="Nouvelle soumission"
+            @input="generatedCode = ''"
+          />
+        </div>
+
+        <div class="export-field">
+          <label class="export-label">Nom du composant</label>
+          <input
+            v-model="exportComponentName"
+            type="text"
+            class="export-input"
+            placeholder="dynamic-form"
+            @input="generatedCode = ''"
+          />
+        </div>
+
+        <div v-if="generatedCode" class="export-preview">
+          <div class="preview-header">
+            <span class="preview-title">Code d'intégration</span>
+            <button class="copy-button" @click="copyEmbedCode">Copier</button>
+          </div>
+          <pre class="preview-code">{{ embedCode }}</pre>
+        </div>
+
+        <button
+          v-if="!generatedCode"
+          type="button"
+          class="generate-button"
+          @click="generateExport"
+        >
+          Générer le code
+        </button>
       </div>
     </BaseModal>
 
@@ -846,5 +982,118 @@ const fieldCount = computed(() => store.schema.fields.length)
   outline: none;
   border-color: var(--color-border-focus);
   box-shadow: var(--ring);
+}
+
+/* Export modal */
+.export-content {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+}
+
+.export-description {
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+  line-height: 1.5;
+}
+
+.export-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+
+.export-label {
+  font-size: var(--text-sm);
+  font-weight: var(--font-medium);
+  color: var(--color-text);
+}
+
+.export-input {
+  height: 40px;
+  padding: 0 var(--space-md);
+  font-size: var(--text-sm);
+  font-family: var(--font-body);
+  color: var(--color-text);
+  background-color: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  transition:
+    border-color var(--transition-fast),
+    box-shadow var(--transition-fast);
+}
+
+.export-input:focus {
+  outline: none;
+  border-color: var(--color-border-focus);
+  box-shadow: var(--ring);
+}
+
+.export-preview {
+  background-color: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+.preview-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-sm) var(--space-md);
+  background-color: var(--color-bg-elevated);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.preview-title {
+  font-size: var(--text-xs);
+  font-weight: var(--font-medium);
+  color: var(--color-text-muted);
+}
+
+.copy-button {
+  font-size: var(--text-xs);
+  font-weight: var(--font-medium);
+  color: var(--color-accent);
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: var(--space-xs) var(--space-sm);
+  border-radius: var(--radius-sm);
+  transition: background-color var(--transition-fast);
+}
+
+.copy-button:hover {
+  background-color: var(--color-accent-light);
+}
+
+.preview-code {
+  padding: var(--space-md);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--color-text);
+  white-space: pre-wrap;
+  word-break: break-all;
+  margin: 0;
+}
+
+.generate-button {
+  align-self: flex-start;
+  padding: var(--space-sm) var(--space-md);
+  font-size: var(--text-sm);
+  font-weight: var(--font-medium);
+  color: var(--color-accent);
+  background-color: var(--color-accent-light);
+  border: 1px solid var(--color-accent);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition:
+    background-color var(--transition-fast),
+    color var(--transition-fast);
+}
+
+.generate-button:hover {
+  background-color: var(--color-accent);
+  color: #fff;
 }
 </style>
