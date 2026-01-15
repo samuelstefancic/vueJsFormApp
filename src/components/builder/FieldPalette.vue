@@ -128,11 +128,78 @@ const fieldTypes = [
       <path d="M12 6H17M12 14H17" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
     </svg>`,
     description: 'Plusieurs choix possibles'
+  },
+  // === NEW DISPLAY FIELDS ===
+  {
+    type: 'heading',
+    label: 'Titre',
+    icon: `<svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+      <path d="M4 4V16M4 10H12M12 4V16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+      <path d="M15 8V16M15 8L17 6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>`,
+    description: 'Titre de section'
+  },
+  {
+    type: 'paragraph',
+    label: 'Paragraphe',
+    icon: `<svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+      <path d="M3 5H17M3 9H17M3 13H13M3 17H9" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+    </svg>`,
+    description: 'Texte explicatif'
+  },
+  {
+    type: 'divider',
+    label: 'Séparateur',
+    icon: `<svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+      <path d="M3 10H17" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+      <circle cx="6" cy="10" r="1" fill="currentColor"/>
+      <circle cx="10" cy="10" r="1" fill="currentColor"/>
+      <circle cx="14" cy="10" r="1" fill="currentColor"/>
+    </svg>`,
+    description: 'Ligne de séparation'
+  },
+  // === NEW SPECIAL FIELDS ===
+  {
+    type: 'hidden',
+    label: 'Champ caché',
+    icon: `<svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+      <path d="M3 10C3 10 6 5 10 5C14 5 17 10 17 10C17 10 14 15 10 15C6 15 3 10 3 10Z" stroke="currentColor" stroke-width="1.5"/>
+      <path d="M3 3L17 17" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+    </svg>`,
+    description: 'Valeur invisible'
+  },
+  {
+    type: 'file',
+    label: 'Fichier',
+    icon: `<svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+      <path d="M10 14V6M10 6L7 9M10 6L13 9" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M3 14V15C3 16.1046 3.89543 17 5 17H15C16.1046 17 17 16.1046 17 15V14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+    </svg>`,
+    description: 'Upload de fichier'
+  },
+  {
+    type: 'signature',
+    label: 'Signature',
+    icon: `<svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+      <path d="M3 17C5 15 7 11 9 11C11 11 10 15 12 15C14 15 15 13 17 11" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+      <path d="M14 3L17 6L10 13H7V10L14 3Z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>`,
+    description: 'Signature manuscrite'
   }
 ]
 
 function addField(type) {
   store.addField(type)
+}
+
+function handleDragStart(event, type) {
+  event.dataTransfer.effectAllowed = 'copy'
+  event.dataTransfer.setData('text/plain', `new:${type}`)
+  event.target.classList.add('dragging')
+}
+
+function handleDragEnd(event) {
+  event.target.classList.remove('dragging')
 }
 </script>
 
@@ -140,7 +207,7 @@ function addField(type) {
   <aside class="field-palette">
     <header class="palette-header">
       <h2 class="palette-title">Champs</h2>
-      <p class="palette-subtitle">Cliquez pour ajouter</p>
+      <p class="palette-subtitle">Cliquez ou glissez pour ajouter</p>
     </header>
 
     <div class="field-types">
@@ -148,7 +215,10 @@ function addField(type) {
         v-for="field in fieldTypes"
         :key="field.type"
         class="field-type-button"
+        draggable="true"
         @click="addField(field.type)"
+        @dragstart="handleDragStart($event, field.type)"
+        @dragend="handleDragEnd"
       >
         <span class="field-icon" v-html="field.icon"></span>
         <span class="field-info">
@@ -261,5 +331,18 @@ function addField(type) {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.field-type-button.dragging {
+  opacity: 0.5;
+  transform: scale(0.95);
+}
+
+.field-type-button[draggable="true"] {
+  cursor: grab;
+}
+
+.field-type-button[draggable="true"]:active {
+  cursor: grabbing;
 }
 </style>

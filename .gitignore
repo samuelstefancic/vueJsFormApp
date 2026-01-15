@@ -27,3 +27,17 @@ y*
 *.njsproj
 *.sln
 *.sw?
+
+# Audio files
+*.aiff
+*.mp3
+*.wav
+
+# Temporary files
+*.tmp
+*.temp
+
+# Claude Code and BMAD - NEVER COMMIT
+.claude/
+_bmad/
+.mcp.json

@@ -1,5 +1,5 @@
 <script setup>
-import { computed } from 'vue'
+import { computed, ref, onMounted, onUnmounted } from 'vue'
 import { useFormBuilderStore } from '../../stores/formBuilder'
 import FieldItem from './FieldItem.vue'
 
@@ -8,6 +8,11 @@ const store = useFormBuilderStore()
 const fields = computed(() => store.schema.fields)
 const selectedFieldId = computed(() => store.selectedFieldId)
 const hasFields = computed(() => fields.value.length > 0)
+
+// Drag state tracking - centralized
+const isDraggingFromPalette = ref(false)
+const insertAtIndex = ref(null) // The index where we'll insert the new field
+const fieldsListRef = ref(null)
 
 function isSelected(fieldId) {
   return fieldId === selectedFieldId.value
@@ -20,22 +25,157 @@ function isFirst(index) {
 function isLast(index) {
   return index === fields.value.length - 1
 }
+
+// Calculate insert position based on cursor Y position
+function calculateInsertIndex(clientY) {
+  if (!fieldsListRef.value) return null
+
+  const fieldElements = fieldsListRef.value.querySelectorAll('.field-wrapper')
+  if (fieldElements.length === 0) return 0
+
+  // Find which field the cursor is closest to
+  for (let i = 0; i < fieldElements.length; i++) {
+    const rect = fieldElements[i].getBoundingClientRect()
+    const midpoint = rect.top + rect.height / 2
+
+    // If cursor is above the midpoint of this field, insert before it
+    if (clientY < midpoint) {
+      return i
+    }
+  }
+
+  // If we're past all fields, insert at the end
+  return fieldElements.length
+}
+
+// Throttle helper to reduce stutter
+let lastUpdate = 0
+const THROTTLE_MS = 16 // ~60fps
+
+function throttledUpdateInsertIndex(clientY) {
+  const now = Date.now()
+  if (now - lastUpdate < THROTTLE_MS) return
+  lastUpdate = now
+
+  const newIndex = calculateInsertIndex(clientY)
+  if (newIndex !== insertAtIndex.value) {
+    insertAtIndex.value = newIndex
+  }
+}
+
+// Check if field should shift down to make room
+function shouldShiftDown(index) {
+  if (insertAtIndex.value === null || !isDraggingFromPalette.value) return false
+  return index >= insertAtIndex.value
+}
+
+// Canvas-level drag handlers - centralized control
+function handleCanvasDragOver(event) {
+  if (!event.dataTransfer.types.includes('text/plain')) return
+
+  event.preventDefault()
+  event.dataTransfer.dropEffect = 'copy'
+  isDraggingFromPalette.value = true
+
+  // Calculate insert position based on cursor
+  throttledUpdateInsertIndex(event.clientY)
+}
+
+function handleCanvasDragLeave(event) {
+  // Only reset if leaving the canvas entirely
+  if (!event.currentTarget.contains(event.relatedTarget)) {
+    isDraggingFromPalette.value = false
+    insertAtIndex.value = null
+  }
+}
+
+function handleCanvasDrop(event) {
+  event.preventDefault()
+  const data = event.dataTransfer.getData('text/plain')
+
+  if (data && data.startsWith('new:')) {
+    const fieldType = data.replace('new:', '')
+    const index = insertAtIndex.value !== null ? insertAtIndex.value : fields.value.length
+    store.addFieldAtIndex(fieldType, index)
+  }
+
+  // Reset state
+  isDraggingFromPalette.value = false
+  insertAtIndex.value = null
+}
+
+// Empty state drop handler
+function handleEmptyDrop(event) {
+  event.preventDefault()
+  event.stopPropagation() // Prevent bubbling to canvas handler
+  const data = event.dataTransfer.getData('text/plain')
+
+  if (data && data.startsWith('new:')) {
+    const fieldType = data.replace('new:', '')
+    store.addField(fieldType)
+  }
+
+  isDraggingFromPalette.value = false
+}
+
+function handleEmptyDragOver(event) {
+  event.preventDefault()
+  event.dataTransfer.dropEffect = 'copy'
+  isDraggingFromPalette.value = true
+}
 </script>
 
 <template>
-  <main class="form-canvas">
-    <TransitionGroup v-if="hasFields" name="field-list" tag="div" class="fields-container">
-      <FieldItem
-        v-for="(field, index) in fields"
-        :key="field.id"
-        :field="field"
-        :is-selected="isSelected(field.id)"
-        :is-first="isFirst(index)"
-        :is-last="isLast(index)"
-      />
-    </TransitionGroup>
+  <main
+    class="form-canvas"
+    :class="{ 'is-dragging': isDraggingFromPalette }"
+    @dragover="handleCanvasDragOver"
+    @dragleave="handleCanvasDragLeave"
+    @drop="handleCanvasDrop"
+  >
+    <div v-if="hasFields" class="fields-container">
+      <div ref="fieldsListRef" class="fields-list">
+        <!-- Placeholder at the top when inserting at index 0 -->
+        <div
+          v-if="isDraggingFromPalette && insertAtIndex === 0"
+          class="drop-placeholder"
+        >
+          <div class="placeholder-line"></div>
+          <span class="placeholder-text">Nouveau champ</span>
+        </div>
 
-    <div v-else class="empty-state">
+        <template v-for="(field, index) in fields" :key="field.id">
+          <div
+            class="field-wrapper"
+            :class="{ 'shift-down': shouldShiftDown(index) }"
+          >
+            <FieldItem
+              :field="field"
+              :is-selected="isSelected(field.id)"
+              :is-first="isFirst(index)"
+              :is-last="isLast(index)"
+            />
+          </div>
+
+          <!-- Placeholder after this field when inserting at index + 1 -->
+          <div
+            v-if="isDraggingFromPalette && insertAtIndex === index + 1"
+            class="drop-placeholder"
+          >
+            <div class="placeholder-line"></div>
+            <span class="placeholder-text">Nouveau champ</span>
+          </div>
+        </template>
+      </div>
+    </div>
+
+    <div
+      v-else
+      class="empty-state"
+      :class="{ 'drop-target': isDraggingFromPalette }"
+      @dragover="handleEmptyDragOver"
+      @drop="handleEmptyDrop"
+    >
       <div class="empty-icon">
         <svg width="64" height="64" viewBox="0 0 64 64" fill="none">
           <rect x="8" y="12" width="48" height="40" rx="4" stroke="currentColor" stroke-width="2"/>
@@ -59,14 +199,79 @@ function isLast(index) {
   overflow-y: auto;
   background-color: var(--color-bg);
   padding: var(--space-xl);
+  transition: background-color var(--transition-fast);
+}
+
+.form-canvas.is-dragging {
+  background-color: color-mix(in srgb, var(--color-accent) 5%, var(--color-bg));
 }
 
 .fields-container {
   display: flex;
   flex-direction: column;
-  gap: var(--space-md);
   max-width: 600px;
   margin: 0 auto;
+}
+
+.fields-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+}
+
+.field-wrapper {
+  display: flex;
+  flex-direction: column;
+}
+
+/* Drop placeholder - appears where new field will be inserted */
+.drop-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 60px;
+  padding: var(--space-md);
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--color-accent) 8%, transparent),
+    color-mix(in srgb, var(--color-accent) 15%, transparent)
+  );
+  border: 2px dashed var(--color-accent);
+  border-radius: var(--radius-lg);
+  animation: placeholderAppear 200ms cubic-bezier(0.2, 0, 0, 1) forwards;
+}
+
+.placeholder-line {
+  width: 60%;
+  height: 3px;
+  background: var(--color-accent);
+  border-radius: var(--radius-full);
+  margin-bottom: var(--space-xs);
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+.placeholder-text {
+  font-size: var(--text-sm);
+  font-weight: var(--font-medium);
+  color: var(--color-accent);
+  opacity: 0.8;
+}
+
+@keyframes placeholderAppear {
+  from {
+    opacity: 0;
+    transform: scaleY(0.5);
+  }
+  to {
+    opacity: 1;
+    transform: scaleY(1);
+  }
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 0.5; transform: scaleX(0.9); }
+  50% { opacity: 1; transform: scaleX(1); }
 }
 
 /* Empty state */
@@ -100,37 +305,10 @@ function isLast(index) {
   line-height: 1.6;
 }
 
-/* List transitions */
-.field-list-enter-active {
-  animation: slideUp var(--transition-base) forwards;
+.empty-state.drop-target {
+  background-color: var(--color-accent-light);
+  border: 2px dashed var(--color-accent);
+  border-radius: var(--radius-lg);
 }
 
-.field-list-leave-active {
-  animation: fadeOut var(--transition-fast) forwards;
-  position: absolute;
-}
-
-.field-list-move {
-  transition: transform var(--transition-base);
-}
-
-@keyframes slideUp {
-  from {
-    opacity: 0;
-    transform: translateY(10px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-@keyframes fadeOut {
-  from {
-    opacity: 1;
-  }
-  to {
-    opacity: 0;
-  }
-}
 </style>

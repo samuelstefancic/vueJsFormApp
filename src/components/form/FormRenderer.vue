@@ -1,5 +1,5 @@
 <script setup>
-import { computed } from 'vue'
+import { computed, reactive, ref } from 'vue'
 import BaseInput from '../ui/BaseInput.vue'
 import BaseTextarea from '../ui/BaseTextarea.vue'
 import BaseSelect from '../ui/BaseSelect.vue'
@@ -27,6 +27,10 @@ const props = defineProps({
 const emit = defineEmits(['update:values'])
 
 const fields = computed(() => props.schema.fields || [])
+
+// Signature canvas refs and drawing state
+const signatureCanvases = reactive({})
+const isDrawing = ref({})
 
 function getValue(fieldId) {
   return props.values[fieldId] ?? ''
@@ -58,6 +62,68 @@ function toggleMultiselectOption(fieldId, optionValue, isChecked) {
     ...props.values,
     [fieldId]: newValues
   })
+}
+
+// File upload handler
+function handleFileChange(fieldId, event) {
+  const files = event.target.files
+  if (files && files.length > 0) {
+    // Store file names for display (actual file handling would depend on backend)
+    const fileNames = Array.from(files).map(f => f.name)
+    updateValue(fieldId, fileNames.join(', '))
+  }
+}
+
+// Signature handlers
+function startSignature(fieldId, event) {
+  if (props.readonly) return
+  isDrawing.value[fieldId] = true
+  const canvas = signatureCanvases[fieldId]
+  if (!canvas) return
+
+  const ctx = canvas.getContext('2d')
+  const rect = canvas.getBoundingClientRect()
+  ctx.beginPath()
+  ctx.moveTo(event.clientX - rect.left, event.clientY - rect.top)
+}
+
+function drawSignature(fieldId, event) {
+  if (!isDrawing.value[fieldId] || props.readonly) return
+  const canvas = signatureCanvases[fieldId]
+  if (!canvas) return
+
+  const field = fields.value.find(f => f.id === fieldId)
+  const ctx = canvas.getContext('2d')
+  const rect = canvas.getBoundingClientRect()
+
+  ctx.lineTo(event.clientX - rect.left, event.clientY - rect.top)
+  ctx.strokeStyle = field?.penColor || '#000000'
+  ctx.lineWidth = 2
+  ctx.lineCap = 'round'
+  ctx.stroke()
+}
+
+function endSignature(fieldId) {
+  if (isDrawing.value[fieldId]) {
+    isDrawing.value[fieldId] = false
+    // Save signature as data URL
+    const canvas = signatureCanvases[fieldId]
+    if (canvas) {
+      const dataUrl = canvas.toDataURL('image/png')
+      updateValue(fieldId, dataUrl)
+    }
+  }
+}
+
+function clearSignature(fieldId) {
+  const canvas = signatureCanvases[fieldId]
+  if (!canvas) return
+
+  const field = fields.value.find(f => f.id === fieldId)
+  const ctx = canvas.getContext('2d')
+  ctx.fillStyle = field?.backgroundColor || '#ffffff'
+  ctx.fillRect(0, 0, canvas.width, canvas.height)
+  updateValue(fieldId, '')
 }
 </script>
 
@@ -289,6 +355,102 @@ function toggleMultiselectOption(fieldId, optionValue, isChecked) {
               <span class="multiselect-checkbox"></span>
               <span class="multiselect-label">{{ option.label }}</span>
             </label>
+          </div>
+          <span v-if="getError(field.id)" class="field-error">{{ getError(field.id) }}</span>
+        </div>
+
+        <!-- NEW: Heading field -->
+        <component
+          v-else-if="field.type === 'heading'"
+          :is="'h' + (field.level || 2)"
+          class="heading-field"
+          :style="{ textAlign: field.align || 'left' }"
+        >
+          {{ field.text || field.label }}
+        </component>
+
+        <!-- NEW: Paragraph field -->
+        <p
+          v-else-if="field.type === 'paragraph'"
+          class="paragraph-field"
+          :style="{ textAlign: field.align || 'left' }"
+        >
+          {{ field.text || field.label }}
+        </p>
+
+        <!-- NEW: Divider field -->
+        <hr
+          v-else-if="field.type === 'divider'"
+          class="divider-field"
+          :class="[
+            `divider-${field.style || 'solid'}`,
+            `spacing-${field.spacing || 'medium'}`
+          ]"
+        />
+
+        <!-- NEW: Hidden field (not visible but stored) -->
+        <input
+          v-else-if="field.type === 'hidden'"
+          type="hidden"
+          :value="getValue(field.id) || field.defaultValue"
+        />
+
+        <!-- NEW: File upload field -->
+        <div v-else-if="field.type === 'file'" class="field-wrapper">
+          <label class="field-label">
+            {{ field.label }}
+            <span v-if="field.required" class="required-mark">*</span>
+          </label>
+          <div class="file-upload-wrapper">
+            <input
+              type="file"
+              class="file-input"
+              :accept="field.accept || '*/*'"
+              :multiple="field.multiple || false"
+              :disabled="readonly"
+              @change="handleFileChange(field.id, $event)"
+            />
+            <div class="file-drop-zone">
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none">
+                <path d="M12 16V8M12 8L9 11M12 8L15 11" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                <path d="M3 15V16C3 18.2091 4.79086 20 7 20H17C19.2091 20 21 18.2091 21 16V15" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+              </svg>
+              <span>Cliquez ou glissez un fichier ici</span>
+              <span class="file-hint">{{ field.accept !== '*/*' ? field.accept : 'Tous les fichiers' }} (max {{ Math.round((field.maxSize || 5242880) / 1024 / 1024) }}MB)</span>
+            </div>
+          </div>
+          <span v-if="getError(field.id)" class="field-error">{{ getError(field.id) }}</span>
+        </div>
+
+        <!-- NEW: Signature field -->
+        <div v-else-if="field.type === 'signature'" class="field-wrapper">
+          <label class="field-label">
+            {{ field.label }}
+            <span v-if="field.required" class="required-mark">*</span>
+          </label>
+          <div class="signature-wrapper">
+            <canvas
+              :ref="el => signatureCanvases[field.id] = el"
+              class="signature-canvas"
+              :width="field.width || 400"
+              :height="field.height || 200"
+              :style="{
+                backgroundColor: field.backgroundColor || '#ffffff',
+                cursor: readonly ? 'not-allowed' : 'crosshair'
+              }"
+              @mousedown="startSignature(field.id, $event)"
+              @mousemove="drawSignature(field.id, $event)"
+              @mouseup="endSignature(field.id)"
+              @mouseleave="endSignature(field.id)"
+            ></canvas>
+            <button
+              v-if="!readonly"
+              type="button"
+              class="signature-clear-btn"
+              @click="clearSignature(field.id)"
+            >
+              Effacer
+            </button>
           </div>
           <span v-if="getError(field.id)" class="field-error">{{ getError(field.id) }}</span>
         </div>
@@ -621,5 +783,137 @@ function toggleMultiselectOption(fieldId, optionValue, isChecked) {
 .multiselect-label {
   font-size: var(--text-sm);
   color: var(--color-text);
+}
+
+/* NEW: Heading field styles */
+.heading-field {
+  font-family: var(--font-display);
+  color: var(--color-text);
+  margin: var(--space-md) 0;
+}
+
+.heading-field:is(h1) {
+  font-size: var(--text-2xl);
+  font-weight: var(--font-semibold);
+}
+
+.heading-field:is(h2) {
+  font-size: var(--text-xl);
+  font-weight: var(--font-medium);
+}
+
+.heading-field:is(h3) {
+  font-size: var(--text-lg);
+  font-weight: var(--font-medium);
+}
+
+.heading-field:is(h4) {
+  font-size: var(--text-base);
+  font-weight: var(--font-medium);
+}
+
+/* NEW: Paragraph field styles */
+.paragraph-field {
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+  line-height: 1.6;
+  margin: var(--space-sm) 0;
+}
+
+/* NEW: Divider field styles */
+.divider-field {
+  border: none;
+  border-top: 1px solid var(--color-border);
+  margin: var(--space-md) 0;
+}
+
+.divider-field.divider-solid {
+  border-top-style: solid;
+}
+
+.divider-field.divider-dashed {
+  border-top-style: dashed;
+}
+
+.divider-field.divider-dotted {
+  border-top-style: dotted;
+}
+
+.divider-field.spacing-small {
+  margin: var(--space-sm) 0;
+}
+
+.divider-field.spacing-medium {
+  margin: var(--space-lg) 0;
+}
+
+.divider-field.spacing-large {
+  margin: var(--space-2xl) 0;
+}
+
+/* NEW: File upload field styles */
+.file-upload-wrapper {
+  position: relative;
+}
+
+.file-input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+  z-index: 1;
+}
+
+.file-drop-zone {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-sm);
+  padding: var(--space-xl);
+  border: 2px dashed var(--color-border);
+  border-radius: var(--radius-lg);
+  background-color: var(--color-bg);
+  color: var(--color-text-muted);
+  transition: border-color var(--transition-fast), background-color var(--transition-fast);
+}
+
+.file-upload-wrapper:hover .file-drop-zone {
+  border-color: var(--color-accent);
+  background-color: var(--color-accent-light);
+}
+
+.file-hint {
+  font-size: var(--text-xs);
+  color: var(--color-text-light);
+}
+
+/* NEW: Signature field styles */
+.signature-wrapper {
+  position: relative;
+  display: inline-block;
+}
+
+.signature-canvas {
+  border: 2px solid var(--color-border);
+  border-radius: var(--radius-md);
+  touch-action: none;
+}
+
+.signature-clear-btn {
+  position: absolute;
+  top: var(--space-sm);
+  right: var(--space-sm);
+  padding: var(--space-xs) var(--space-sm);
+  font-size: var(--text-xs);
+  background-color: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: background-color var(--transition-fast);
+}
+
+.signature-clear-btn:hover {
+  background-color: var(--color-bg-hover);
 }
 </style>

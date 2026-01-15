@@ -23,7 +23,13 @@ const props = defineProps({
   }
 })
 
+const emit = defineEmits(['dragstart', 'dragend', 'dragover', 'drop'])
+
 const store = useFormBuilderStore()
+
+// Drag and drop state (for reordering existing fields)
+const isDragging = ref(false)
+const isDragOver = ref(false)
 
 const showDeleteModal = ref(false)
 
@@ -82,6 +88,28 @@ const typeIcons = {
     <rect x="2" y="9" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.5"/>
     <path d="M3.5 11.5L4.5 12.5L6.5 10.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
     <path d="M10 5H14M10 12H14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+  </svg>`,
+  // New field type icons
+  heading: `<svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+    <path d="M3 3V13M3 8H10M10 3V13" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+  </svg>`,
+  paragraph: `<svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+    <path d="M2 4H14M2 7H14M2 10H10M2 13H6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+  </svg>`,
+  divider: `<svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+    <path d="M2 8H14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+  </svg>`,
+  hidden: `<svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+    <path d="M2 8C2 8 5 4 8 4C11 4 14 8 14 8C14 8 11 12 8 12C5 12 2 8 2 8Z" stroke="currentColor" stroke-width="1.5"/>
+    <path d="M2 2L14 14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+  </svg>`,
+  file: `<svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+    <path d="M8 11V5M8 5L5 8M8 5L11 8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M2 11V12C2 13.1 2.9 14 4 14H12C13.1 14 14 13.1 14 12V11" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+  </svg>`,
+  signature: `<svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+    <path d="M2 13C4 11 5 8 7 8C9 8 8 12 10 12C12 12 13 10 14 8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+    <path d="M11 2L14 5L8 11H5V8L11 2Z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
   </svg>`
 }
 
@@ -99,7 +127,14 @@ const typeLabels = {
   rating: 'Notation',
   radio: 'Boutons radio',
   slider: 'Curseur',
-  multiselect: 'Multi-sélection'
+  multiselect: 'Multi-sélection',
+  // New field types
+  heading: 'Titre',
+  paragraph: 'Paragraphe',
+  divider: 'Séparateur',
+  hidden: 'Champ caché',
+  file: 'Fichier',
+  signature: 'Signature'
 }
 
 const typeLabel = computed(() => typeLabels[props.field.type] || props.field.type)
@@ -128,14 +163,80 @@ function deleteField() {
   store.removeField(props.field.id)
   showDeleteModal.value = false
 }
+
+// Drag and drop handlers (for reordering existing fields only)
+function handleDragStart(event) {
+  isDragging.value = true
+  event.dataTransfer.effectAllowed = 'move'
+  event.dataTransfer.setData('text/plain', props.field.id)
+  emit('dragstart', props.field.id)
+}
+
+function handleDragEnd() {
+  isDragging.value = false
+  emit('dragend')
+}
+
+function handleDragOver(event) {
+  event.preventDefault()
+  event.dataTransfer.dropEffect = 'move'
+  isDragOver.value = true
+  emit('dragover', props.field.id)
+}
+
+function handleDragLeave(event) {
+  // Check if we're actually leaving the element (not entering a child)
+  const rect = event.currentTarget.getBoundingClientRect()
+  const x = event.clientX
+  const y = event.clientY
+
+  if (x < rect.left || x > rect.right || y < rect.top || y > rect.bottom) {
+    isDragOver.value = false
+  }
+}
+
+function handleDrop(event) {
+  event.preventDefault()
+  const draggedData = event.dataTransfer.getData('text/plain')
+
+  // Only handle reordering existing fields (palette drops are handled by FormCanvas)
+  if (draggedData && !draggedData.startsWith('new:') && draggedData !== props.field.id) {
+    store.reorderField(draggedData, props.field.id)
+    emit('drop', props.field.id)
+  }
+
+  isDragOver.value = false
+}
 </script>
 
 <template>
   <div
     class="field-item"
-    :class="{ selected: isSelected }"
+    :class="{
+      selected: isSelected,
+      dragging: isDragging,
+      'drag-over': isDragOver
+    }"
+    draggable="true"
     @click="selectField"
+    @dragstart="handleDragStart"
+    @dragend="handleDragEnd"
+    @dragover="handleDragOver"
+    @dragleave="handleDragLeave"
+    @drop="handleDrop"
   >
+    <!-- Drag handle -->
+    <div class="drag-handle" title="Glisser pour réorganiser">
+      <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+        <circle cx="3" cy="2" r="1" fill="currentColor"/>
+        <circle cx="9" cy="2" r="1" fill="currentColor"/>
+        <circle cx="3" cy="6" r="1" fill="currentColor"/>
+        <circle cx="9" cy="6" r="1" fill="currentColor"/>
+        <circle cx="3" cy="10" r="1" fill="currentColor"/>
+        <circle cx="9" cy="10" r="1" fill="currentColor"/>
+      </svg>
+    </div>
+
     <div class="field-content">
       <span class="field-icon" v-html="typeIcons[field.type]"></span>
       <div class="field-info">
@@ -213,11 +314,13 @@ function deleteField() {
 
 <style scoped>
 .field-item {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: var(--space-md);
   padding: var(--space-md);
+  padding-left: var(--space-sm);
   background-color: var(--color-bg-elevated);
   border: 2px solid var(--color-border);
   border-radius: var(--radius-lg);
@@ -225,8 +328,8 @@ function deleteField() {
   transition:
     border-color var(--transition-fast),
     box-shadow var(--transition-fast),
-    transform var(--transition-fast);
-  animation: slideUp var(--transition-base) forwards;
+    transform var(--transition-fast),
+    opacity var(--transition-fast);
 }
 
 .field-item:hover {
@@ -237,6 +340,44 @@ function deleteField() {
 .field-item.selected {
   border-color: var(--color-accent);
   box-shadow: 0 0 0 3px var(--color-accent-light);
+}
+
+/* Drag handle */
+.drag-handle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 36px;
+  color: var(--color-text-light);
+  cursor: grab;
+  opacity: 0.4;
+  transition: opacity var(--transition-fast), color var(--transition-fast);
+  flex-shrink: 0;
+}
+
+.drag-handle:active {
+  cursor: grabbing;
+}
+
+.field-item:hover .drag-handle {
+  opacity: 1;
+  color: var(--color-text-muted);
+}
+
+/* Dragging state */
+.field-item.dragging {
+  opacity: 0.5;
+  transform: scale(1.02);
+  box-shadow: var(--shadow-lg);
+  border-color: var(--color-accent);
+}
+
+/* Drop target state for reordering existing fields */
+.field-item.drag-over {
+  border-color: var(--color-accent);
+  border-style: dashed;
+  background-color: var(--color-accent-light);
 }
 
 .field-content {

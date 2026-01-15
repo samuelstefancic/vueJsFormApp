@@ -38,6 +38,7 @@ function setStorageData(data) {
 function createField(type, existingNames) {
   const id = generateId()
   const typeLabels = {
+    // Original 14 field types
     text: 'Champ texte',
     textarea: 'Zone de texte',
     number: 'Nombre',
@@ -51,7 +52,14 @@ function createField(type, existingNames) {
     rating: 'Notation',
     radio: 'Boutons radio',
     slider: 'Curseur',
-    multiselect: 'Sélection multiple'
+    multiselect: 'Sélection multiple',
+    // New display/special field types (5 new)
+    heading: 'Titre',
+    paragraph: 'Paragraphe',
+    divider: 'Séparateur',
+    hidden: 'Champ caché',
+    file: 'Fichier',
+    signature: 'Signature'
   }
 
   const label = typeLabels[type] || 'Nouveau champ'
@@ -108,6 +116,52 @@ function createField(type, existingNames) {
         ],
         defaultValue: []
       }
+    // NEW: Display field types
+    case 'heading':
+      return {
+        ...baseField,
+        required: false,
+        text: 'Titre de section',
+        level: 2, // h1, h2, h3, h4
+        align: 'left' // left, center, right
+      }
+    case 'paragraph':
+      return {
+        ...baseField,
+        required: false,
+        text: 'Texte explicatif ou instructions...',
+        align: 'left'
+      }
+    case 'divider':
+      return {
+        ...baseField,
+        required: false,
+        style: 'solid', // solid, dashed, dotted
+        spacing: 'medium' // small, medium, large
+      }
+    case 'hidden':
+      return {
+        ...baseField,
+        required: false,
+        defaultValue: ''
+      }
+    // NEW: File/Signature field types
+    case 'file':
+      return {
+        ...baseField,
+        accept: '*/*',
+        maxSize: 5242880, // 5MB
+        multiple: false,
+        maxFiles: 1
+      }
+    case 'signature':
+      return {
+        ...baseField,
+        width: 400,
+        height: 200,
+        penColor: '#000000',
+        backgroundColor: '#ffffff'
+      }
     default:
       return baseField
   }
@@ -159,6 +213,18 @@ export const useFormBuilderStore = defineStore('formBuilder', {
     addField(type) {
       const field = createField(type, this.fieldNames)
       this.schema.fields.push(field)
+      this.selectedFieldId = field.id
+      this.markDirty()
+    },
+
+    // NEW: Add field at specific index (for drag & drop from palette)
+    addFieldAtIndex(type, index) {
+      const field = createField(type, this.fieldNames)
+      if (index >= 0 && index <= this.schema.fields.length) {
+        this.schema.fields.splice(index, 0, field)
+      } else {
+        this.schema.fields.push(field)
+      }
       this.selectedFieldId = field.id
       this.markDirty()
     },
@@ -237,6 +303,77 @@ export const useFormBuilderStore = defineStore('formBuilder', {
       this.schema.fields[index] = this.schema.fields[newIndex]
       this.schema.fields[newIndex] = temp
       this.markDirty()
+    },
+
+    // NEW: Reorder field for drag & drop
+    reorderField(fieldId, targetId) {
+      const fromIndex = this.schema.fields.findIndex(f => f.id === fieldId)
+      const toIndex = this.schema.fields.findIndex(f => f.id === targetId)
+
+      if (fromIndex === -1 || toIndex === -1 || fromIndex === toIndex) return
+
+      const [field] = this.schema.fields.splice(fromIndex, 1)
+      this.schema.fields.splice(toIndex, 0, field)
+      this.markDirty()
+    },
+
+    // NEW: Bulk delete fields
+    bulkRemoveFields(ids) {
+      ids.forEach(id => {
+        const index = this.schema.fields.findIndex(f => f.id === id)
+        if (index !== -1) {
+          this.schema.fields.splice(index, 1)
+        }
+      })
+
+      if (ids.includes(this.selectedFieldId)) {
+        this.selectedFieldId = this.schema.fields.length > 0
+          ? this.schema.fields[0].id
+          : null
+      }
+
+      this.markDirty()
+    },
+
+    // NEW: Bulk update fields
+    bulkUpdateFields(ids, patch) {
+      ids.forEach(id => {
+        const field = this.schema.fields.find(f => f.id === id)
+        if (field) {
+          Object.assign(field, patch)
+        }
+      })
+      this.markDirty()
+    },
+
+    // NEW: Bulk duplicate fields
+    bulkDuplicateFields(ids) {
+      const newFields = []
+      ids.forEach(id => {
+        const sourceField = this.schema.fields.find(f => f.id === id)
+        if (sourceField) {
+          const index = this.schema.fields.findIndex(f => f.id === id)
+          const newField = {
+            ...JSON.parse(JSON.stringify(sourceField)),
+            id: generateId(),
+            name: generateUniqueName(sourceField.label, [...this.fieldNames, ...newFields.map(f => f.name)]),
+            label: `${sourceField.label} (copie)`
+          }
+          newFields.push({ field: newField, insertAfter: index })
+        }
+      })
+
+      // Insert in reverse order to maintain positions
+      newFields.reverse().forEach(({ field, insertAfter }) => {
+        this.schema.fields.splice(insertAfter + 1, 0, field)
+      })
+
+      this.markDirty()
+    },
+
+    // NEW: Deselect current field
+    deselectField() {
+      this.selectedFieldId = null
     },
 
     updateTitle(title) {
